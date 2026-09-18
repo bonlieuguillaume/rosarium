@@ -1,0 +1,16 @@
+name: rosarium
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  # shared by both tools
+  - ipykernel
+  - geopandas
+  - shapely
+  # polygon_to_swaths_bursts
+  - numpy
+  - folium
+  # aoi_to_slc
+  - requests
+  - ipyleaflet
+  - ipywidgets

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>rosarium — Sentinel-1 webmap</title>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="logo">rosarium<span> // AOI → S1 · CDSE catalogue</span></div>
+  <div id="status">Draw an AOI on the map, or paste one in the sidebar.</div>
+</header>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-top">
+
+      <!-- AOI: shared by every feature (map.js) -->
+      <div class="sidebar-section">
+        <div class="section-title">Area of interest</div>
+        <div class="hint">Draw with the toolbar on the map (polygon or rectangle), or paste WKT / GeoJSON in lon/lat.</div>
+        <textarea id="aoiText" rows="3" placeholder="POLYGON ((lon lat, ...)) — or GeoJSON"></textarea>
+        <div class="btn-row">
+          <button class="btn primary" onclick="useAoiText()">Use this AOI</button>
+          <button class="btn" onclick="clearAll()">Clear</button>
+        </div>
+      </div>
+
+      <!-- aoi_to_slc: SEARCH (aoi_to_slc.js) -->
+      <div class="sidebar-section">
+        <div class="section-title">Search</div>
+        <div class="grid2">
+          <div class="field"><label>From</label><input type="date" id="start"></div>
+          <div class="field"><label>To</label><input type="date" id="end"></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>Product</label>
+            <select id="product"><option value="SLC">SLC</option><option value="GRD">GRD (COG)</option></select></div>
+          <div class="field"><label>Mode</label>
+            <select id="mode"><option>IW</option><option>EW</option><option>SM</option><option value="">any</option></select></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>Orbit</label>
+            <select id="orbit"><option value="">any</option><option>ascending</option><option>descending</option></select></div>
+          <div class="field"><label>Platform</label>
+            <select id="platform"><option value="">any</option><option>S1A</option><option>S1B</option><option>S1C</option><option>S1D</option></select></div>
+        </div>
+        <div class="btn-row"><button class="btn primary" id="searchBtn" onclick="search()">Search</button></div>
+      </div>
+
+      <!-- aoi_to_slc: PATH FILE (aoi_to_slc.js) -->
+      <div class="sidebar-section">
+        <div class="section-title">Path file</div>
+        <div class="field"><label>File (one product per line)</label><input type="text" id="pathFile"></div>
+        <div class="btn-row" style="align-items:center">
+          <label class="check" title="Also write the AOI as <path file>_aoi.geojson, next to the list">
+            <input type="checkbox" id="withAoi" checked> AOI alongside
+          </label>
+          <button class="btn go" id="writeBtn" onclick="writePaths()">Write S3 paths</button>
+        </div>
+        <textarea id="preview" rows="4" readonly placeholder="the lines that will be written" style="margin-top:8px"></textarea>
+      </div>
+
+      <!-- BASEMAP (map.js) -->
+      <div class="sidebar-section">
+        <div class="section-title">Basemap</div>
+        <div class="basemap-btns">
+          <button class="btn active" onclick="setBasemap('dark', this)">Dark</button>
+          <button class="btn" onclick="setBasemap('satellite', this)">SAT</button>
+          <button class="btn" onclick="setBasemap('osm', this)">OSM</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- aoi_to_slc: RESULTS (aoi_to_slc.js) -->
+    <div class="list-area">
+      <div class="list-header">
+        <span>Products <span id="listCount" style="font-weight:400;color:var(--text-dim)"></span></span>
+        <span>
+          <button class="btn" onclick="selectAll(true)">All</button>
+          <button class="btn" onclick="selectAll(false)">None</button>
+        </span>
+      </div>
+      <div class="list-wrap" id="list"><div class="empty">No search yet</div></div>
+    </div>
+  </div>
+
+  <div id="map"></div>
+</div>
+
+<div class="statusbar">
+  <span id="coords">Move cursor over map</span>
+  <span class="sep">|</span>
+  <span>WGS84</span>
+  <span class="sep">|</span>
+  <span id="selInfo">0 selected</span>
+  <span class="sep">|</span>
+  <span id="pathInfo"></span>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<!-- map.js first: the feature scripts build on what it declares -->
+<script src="map.js"></script>
+<script src="aoi_to_slc.js"></script>
+</body>
+</html>

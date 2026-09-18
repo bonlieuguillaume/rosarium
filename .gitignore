@@ -1,0 +1,36 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# --- Environments ---
+.venv/
+venv/
+env/
+.env
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+tempCodeRunnerFile.py
+
+# --- Data: never committed, the folders stay (.gitkeep) ---
+# raw/           Sentinel-1 SLC / GRD products
+# preprocessed/  processing outputs
+# utils/         intermediates: path files (.txt), AOIs (.geojson)...
+data/raw/*
+data/preprocessed/*
+data/utils/*
+!data/*/.gitkeep
+
+# Sentinel-1 products and heavy rasters anywhere else in the tree
+*.SAFE/
+*.tif
+*.tiff
+*.nc
