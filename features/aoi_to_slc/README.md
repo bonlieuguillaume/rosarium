@@ -70,7 +70,7 @@ No account, no token: the catalogue search is anonymous.
 ## Usage
 
 **Browser** — the main way. From the repository root, in the `rosarium` env
-(or double-click `rosarium.bat`):
+(or double-click `launch/rosarium.bat`):
 
 ```
 python rosarium.py webmap --open

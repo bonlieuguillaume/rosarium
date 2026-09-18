@@ -1,11 +1,10 @@
 @echo off
-rem rosarium webmap launcher: double-click, or run from any terminal.
+rem rosarium webmap launcher (Windows): double-click, or run from any terminal.
 rem Activates the conda env and starts "python rosarium.py webmap --open".
 rem Keep this window open while using the map; Ctrl+C or closing it stops
 rem the server. Extra arguments are passed on: rosarium.bat --port 9000
 rem
-rem Desktop icon: right-click this file > Send to > Desktop (create shortcut).
-rem The shortcut's icon can be changed in its Properties.
+rem Desktop icon: run make_shortcut.bat once (same folder).
 
 setlocal
 set "ENV_NAME=rosarium"
@@ -16,13 +15,13 @@ for %%d in ("%USERPROFILE%\miniforge3" "%USERPROFILE%\miniconda3" "%USERPROFILE%
     if not defined CONDA_BASE if exist "%%~d\Scripts\activate.bat" set "CONDA_BASE=%%~d"
 )
 if not defined CONDA_BASE (
-    echo Could not find a conda install: set CONDA_BASE in rosarium.bat
+    echo Could not find a conda install: set CONDA_BASE in launch\rosarium.bat
     pause
     exit /b 1
 )
 
-rem Run from the repository, wherever the shortcut lives
-cd /d "%~dp0"
+rem Run from the repository root (this file sits in launch\)
+cd /d "%~dp0.."
 
 call "%CONDA_BASE%\Scripts\activate.bat" "%ENV_NAME%"
 if errorlevel 1 (

@@ -8,9 +8,16 @@ the layout and how a feature is added.
 
 ## Environment
 
-- conda/miniforge env named `rosarium`, Python 3.11. The user creates and
-  updates it from a yml kept outside this repository: hand them the conda-forge
-  package names to add, never write or move env files, never create the env.
+- conda/miniforge env named `rosarium`, Python 3.11, from
+  `env_light_rosarium.yml` at the root. The user maintains that file and the
+  env themselves: hand them the conda-forge package names to add, never edit or
+  move the yml, never create or update the env.
+- `launch/` holds the double-click launchers (`rosarium.bat`, `rosarium.sh`)
+  and the desktop-shortcut makers (`make_shortcut.bat` → `.lnk`,
+  `make_shortcut.sh` → `.desktop`); both look for the conda base in the usual
+  home locations and for an optional logo (`rosarium.ico` / `.png`) next to
+  them. Testing them must not touch the user's real desktop: write to the
+  scratchpad instead.
 - **Every dependency must be installable from conda-forge.** Hard requirement:
   no pip-only packages, no heavyweight SAR stacks (SNAP, ISCE, GAMMA) — the
   features reimplement what they need from product metadata.

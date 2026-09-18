@@ -20,7 +20,10 @@ doors: `rosarium.py` (command line) and the webmap in `frontend/` (browser).
 ```
 rosarium/
 ├── rosarium.py            entry point: python rosarium.py <command> [options]
-├── rosarium.bat           double-click launcher of the webmap (Windows)
+├── env_light_rosarium.yml the conda env
+├── launch/                double-click launchers of the webmap + desktop shortcut makers
+│   ├── rosarium.bat       Windows launcher      make_shortcut.bat  desktop .lnk
+│   └── rosarium.sh        Linux/macOS launcher  make_shortcut.sh   .desktop entry
 ├── features/              one folder per feature: module + notebook + README
 │   ├── aoi_to_slc/
 │   └── polygon_to_swaths_bursts/
@@ -37,13 +40,12 @@ rosarium/
 ## Setup
 
 A conda env named `rosarium` (miniforge / mamba), Python 3.11, every package
-from conda-forge:
+from conda-forge — `env_light_rosarium.yml` at the root:
 
 ```
-ipykernel geopandas shapely numpy folium requests ipyleaflet ipywidgets
+mamba env create -f env_light_rosarium.yml       # first time
+mamba env update -n rosarium -f env_light_rosarium.yml
 ```
-
-The env is created and updated from its yml by hand, outside this repository.
 
 ## Usage
 
@@ -60,10 +62,21 @@ python rosarium.py webmap --port 9000 --path-file C:/data/list.txt --days 60
 The page opens on <http://localhost:8050>; Ctrl+C in the terminal stops it.
 Path files land in `data/utils/` by default, with the AOI next to them.
 
-**Desktop icon** — `rosarium.bat` activates the env and runs the command above.
-Right-click it → *Send to* → *Desktop (create shortcut)*; the shortcut's icon
-can be changed in its properties. The console window it opens is the server:
-keep it open while using the map, close it to stop.
+**Desktop icon** — the launchers in `launch/` activate the env and run the
+command above; the console window they open is the server: keep it open while
+using the map, close it to stop.
+
+- Windows: double-click `launch/rosarium.bat`. For a desktop shortcut,
+  double-click `launch/make_shortcut.bat` once: it writes `rosarium.lnk` on the
+  desktop, with `launch/rosarium.ico` as icon when that file exists.
+- Linux / macOS: `bash launch/rosarium.sh`. For a menu + desktop entry,
+  `bash launch/make_shortcut.sh` once: it writes `rosarium.desktop` in
+  `~/.local/share/applications` and on the desktop, with `launch/rosarium.svg`
+  as icon (`launch/rosarium.png` as fallback) when that file exists.
+
+To rename the shortcut or change the logo, edit `SHORTCUT_NAME` / drop the icon
+file in `launch/`, and run the `make_shortcut` script again. No logo is shipped
+yet.
 
 **Command line** — `python rosarium.py --help` lists the commands,
 `python rosarium.py <command> --help` the options of one:
