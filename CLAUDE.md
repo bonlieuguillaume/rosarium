@@ -12,12 +12,14 @@ the layout and how a feature is added.
   `env_light_rosarium.yml` at the root. The user maintains that file and the
   env themselves: hand them the conda-forge package names to add, never edit or
   move the yml, never create or update the env.
-- `launch/` holds the double-click launchers (`rosarium.bat`, `rosarium.sh`)
-  and the desktop-shortcut makers (`make_shortcut.bat` → `.lnk`,
-  `make_shortcut.sh` → `.desktop`); both look for the conda base in the usual
-  home locations and for an optional logo (`rosarium.ico` / `.png`) next to
-  them. Testing them must not touch the user's real desktop: write to the
-  scratchpad instead.
+- `launch/` holds the double-click launchers (`rosarium.bat`, `rosarium.sh`,
+  `rosarium.command` for the macOS Finder) and the desktop-shortcut makers
+  (`make_shortcut.bat` → `.lnk`; `make_shortcut.sh` → `.desktop` on Linux,
+  `.app` bundle on macOS via `sips`/`iconutil`). They look for the conda base
+  in the usual locations and for the logo next to them (`rosarium.ico`,
+  `.svg`, `.png`). Testing them must not touch the user's real desktop: fake
+  `HOME` (and `uname` for the macOS branch) in the scratchpad instead. The
+  macOS branch has never run on a Mac.
 - **Every dependency must be installable from conda-forge.** Hard requirement:
   no pip-only packages, no heavyweight SAR stacks (SNAP, ISCE, GAMMA) — the
   features reimplement what they need from product metadata.
@@ -30,10 +32,20 @@ the layout and how a feature is added.
   install packages, modify the env, or run commands against their SAR products
   unless they explicitly ask. Ad-hoc checks belong in the scratchpad directory;
   a test server goes on a spare port and its outputs are removed afterwards.
-- Windows. The "Miniforge Prompt" is `cmd.exe` (no `PS` in the prompt); VS
-  Code's integrated terminal is PowerShell. Shell quoting differs between the
-  two — matters when documenting CLI examples. Console output must stay ASCII
-  (`->` not `→`): the cmd console is cp1252.
+- Developed on Windows, **but every feature must run unchanged on Linux and
+  macOS** — the repo gets cloned there. Rules: `pathlib` and `/`-agnostic
+  paths, no hard-coded drive letters outside the users' parameter cells, no
+  Windows-only modules or shell calls (`cmd`, PowerShell, `%VAR%`), no
+  reliance on case-insensitive file names, and every OS-specific branch
+  (`sys.platform`) gets its Unix side. Shell scripts stay POSIX-ish bash: no
+  GNU-only flags (`readlink -f`, `sed -i` without suffix) — macOS ships BSD
+  tools. Anything that launches or installs ships in every form in `launch/`
+  (`.bat` + `.sh` + `.command`). Line endings are pinned by `.gitattributes`
+  (`.sh`/`.command` LF, `.bat` CRLF): keep new file kinds in there.
+- Windows shells: the "Miniforge Prompt" is `cmd.exe` (no `PS` in the prompt);
+  VS Code's integrated terminal is PowerShell. Shell quoting differs between
+  the two — matters when documenting CLI examples. Console output must stay
+  ASCII (`->` not `→`): the cmd console is cp1252.
 - **Never overwrite the user's own values.** Parameter cells hold what they
   chose: input paths, AOI, mode, output directories. `NotebookEdit` rewrites a
   whole cell, so editing one line of such a cell silently restores every other

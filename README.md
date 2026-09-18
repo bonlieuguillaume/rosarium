@@ -22,8 +22,9 @@ rosarium/
 ├── rosarium.py            entry point: python rosarium.py <command> [options]
 ├── env_light_rosarium.yml the conda env
 ├── launch/                double-click launchers of the webmap + desktop shortcut makers
-│   ├── rosarium.bat       Windows launcher      make_shortcut.bat  desktop .lnk
-│   └── rosarium.sh        Linux/macOS launcher  make_shortcut.sh   .desktop entry
+│   ├── rosarium.bat       Windows launcher        make_shortcut.bat  desktop .lnk
+│   ├── rosarium.sh        Linux/macOS launcher    make_shortcut.sh   .desktop entry (Linux)
+│   └── rosarium.command   macOS double-click, hands over to rosarium.sh  / .app bundle (macOS)
 ├── features/              one folder per feature: module + notebook + README
 │   ├── aoi_to_slc/
 │   └── polygon_to_swaths_bursts/
@@ -69,14 +70,22 @@ using the map, close it to stop.
 - Windows: double-click `launch/rosarium.bat`. For a desktop shortcut,
   double-click `launch/make_shortcut.bat` once: it writes `rosarium.lnk` on the
   desktop, with `launch/rosarium.ico` as icon when that file exists.
-- Linux / macOS: `bash launch/rosarium.sh`. For a menu + desktop entry,
-  `bash launch/make_shortcut.sh` once: it writes `rosarium.desktop` in
+- Linux: `bash launch/rosarium.sh`. For a menu + desktop entry,
+  `bash launch/make_shortcut.sh` once: it writes `Rosarium.desktop` in
   `~/.local/share/applications` and on the desktop, with `launch/rosarium.svg`
-  as icon (`launch/rosarium.png` as fallback) when that file exists.
+  as icon (`launch/rosarium.png` as fallback).
+- macOS: double-click `launch/rosarium.command` (or `bash launch/rosarium.sh`).
+  For a desktop app, `bash launch/make_shortcut.sh` once: it builds
+  `~/Desktop/Rosarium.app`, which opens the launcher in the Terminal, with the
+  icon made from `launch/rosarium.png` by the system tools (`sips`, `iconutil`).
 
-To rename the shortcut or change the logo, edit `SHORTCUT_NAME` / drop the icon
-file in `launch/`, and run the `make_shortcut` script again. No logo is shipped
-yet.
+The `.sh` / `.command` files may need `chmod +x launch/*.sh launch/*.command`
+once after a clone from Windows (git there does not store the executable bit);
+`bash launch/make_shortcut.sh` does it for you.
+
+To rename the shortcut or change the logo, edit `SHORTCUT_NAME` / replace the
+icon files in `launch/` (`rosarium.ico` for Windows, `rosarium.svg` and
+`rosarium.png` for Linux and macOS), and run the `make_shortcut` script again.
 
 **Command line** — `python rosarium.py --help` lists the commands,
 `python rosarium.py <command> --help` the options of one:

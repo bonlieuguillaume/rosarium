@@ -7,7 +7,7 @@ rem   icon : launch\rosarium.ico when it exists, the default .bat icon otherwise
 rem          Windows wants a .ico file — convert a PNG first.
 
 setlocal
-set "SHORTCUT_NAME=rosarium"
+set "SHORTCUT_NAME=Rosarium"
 set "LAUNCH=%~dp0"
 set "ICON=%LAUNCH%rosarium.ico"
 

@@ -130,9 +130,13 @@ class Handler(BaseHTTPRequestHandler):
 class Server(ThreadingHTTPServer):
     """One server per port. HTTPServer sets SO_REUSEADDR, which on Windows lets
     a second process bind a port already in use — both then run and requests
-    land on either. Without it, the second start fails, as it should."""
+    land on either. Without it, the second start fails, as it should.
 
-    allow_reuse_address = False
+    On Linux and macOS SO_REUSEADDR does not have that effect, and without it
+    the port stays blocked for a minute (TIME_WAIT) after Ctrl+C, so an
+    immediate restart would fail: keep the default there."""
+
+    allow_reuse_address = sys.platform != "win32"
 
 
 def _build_parser(prog=None):
