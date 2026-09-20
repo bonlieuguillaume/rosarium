@@ -76,7 +76,9 @@ the layout and how a feature is added.
   `prog="python rosarium.py <command>"` so usage and examples match the call.
 - Front-end: `frontend/api/<feature>.py` holds `ROUTES = {"GET": {}, "POST":
   {}}` of functions `(body, config) -> JSON-able`; `frontend/static/map.js`
-  owns the map, the single AOI, the status line and `api()`; a feature's script
+  owns the map, the single AOI, the status line, `api()` and the liveness
+  heartbeat (`/api/ping` while open, `/api/bye` on `pagehide`; the server
+  stops once no page is left, `--stay` disables it); a feature's script
   registers in `clearHooks` / `initHooks` rather than redefining them. No
   framework, no build step.
 

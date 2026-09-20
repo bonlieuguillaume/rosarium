@@ -84,8 +84,8 @@ in the list. Click a product in the list or on the map to tick it (green); *All*
 / *None* for the whole list. The path file box previews the lines; *Write S3
 paths* writes them — overwriting the file: one file is one selection — with the
 AOI next to it as `<name>_aoi.geojson` unless *AOI alongside* is unticked. The
-header line reports every step, errors in red. Ctrl+C in the terminal stops the
-server.
+header line reports every step, errors in red. Closing the page stops the
+server (Ctrl+C in the terminal too; `--stay` to keep it running).
 
 `--path-file`, `--style`, `--center LAT LON`, `--zoom`, `--days` and
 `--max-items` set the page's defaults; the path file stays editable in the page,

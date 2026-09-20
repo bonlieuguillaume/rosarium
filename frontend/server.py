@@ -21,8 +21,11 @@ command line; the path file stays editable in the page.
 import argparse
 import json
 import mimetypes
+import os
+import platform
 import sys
 import threading
+import time
 import webbrowser
 from datetime import date, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -50,13 +53,49 @@ FEATURES = [api_aoi_to_slc]
 # and to every route
 CONFIG = {}
 
+# --- Page liveness --------------------------------------------------------------
+# The page pings while open and says goodbye when closed; once no page is
+# left, the server stops on its own (unless --stay). A goodbye is followed by
+# a short grace period, so a reload — goodbye, then a new page pinging — does
+# not stop it. The long timeout is only a fallback for a page that vanished
+# without a goodbye (browser crash): background tabs throttle their timers,
+# so it must stay well above a minute.
+PING_INTERVAL = 5       # seconds, what the page uses (handed out in the config)
+PING_TIMEOUT = 120      # no ping for that long: the page is gone
+BYE_GRACE = 3           # after a goodbye, wait that long for a new page
+LIVENESS = {"last_ping": None, "deadline": None}
+
 
 def api_config(_body, config):
     return config
 
 
+def api_ping(_body, _config):
+    LIVENESS["last_ping"] = time.monotonic()
+    LIVENESS["deadline"] = LIVENESS["last_ping"] + PING_TIMEOUT
+    return {"ok": True}
+
+
+def api_bye(_body, _config):
+    LIVENESS["deadline"] = time.monotonic() + BYE_GRACE
+    return {"ok": True}
+
+
+def _watch_pages(httpd, stop_event):
+    """Stop the server once a page has connected and none is left."""
+    while not stop_event.wait(1):
+        deadline = LIVENESS["deadline"]
+        if deadline is not None and time.monotonic() > deadline:
+            print("  page closed, stopping the server.")
+            httpd.shutdown()
+            return
+
+
 def _collect_routes():
-    routes = {"GET": {"/api/config": api_config}, "POST": {}}
+    routes = {
+        "GET": {"/api/config": api_config},
+        "POST": {"/api/ping": api_ping, "/api/bye": api_bye},
+    }
     for module in FEATURES:
         for method, table in module.ROUTES.items():
             clash = set(table) & set(routes[method])
@@ -162,7 +201,24 @@ def _build_parser(prog=None):
     parser.add_argument("--days", type=int, default=30, help="initial date range: the last N days (default: 30)")
     parser.add_argument("--max-items", type=int, default=300,
                         help="stop listing after that many products (default: 300)")
+    parser.add_argument("--stay", action="store_true",
+                        help="keep running after the page is closed (default: stop with it)")
     return parser
+
+
+def _banner(url, args):
+    env = os.environ.get("CONDA_DEFAULT_ENV") or "(no conda env)"
+    lines = [
+        "",
+        "  rosarium webmap",
+        f"  url        {url}",
+        f"  env        {env}  (python {platform.python_version()}, {sys.executable})",
+        f"  repo       {ROOT}",
+        f"  path file  {args.path_file}  ({args.style} style)",
+        "  " + ("Ctrl+C to stop" if args.stay else "stops when the page is closed; Ctrl+C to stop now"),
+        "",
+    ]
+    print("\n".join(lines), flush=True)
 
 
 def main(argv=None, prog=None):
@@ -175,6 +231,7 @@ def main(argv=None, prog=None):
         center=list(args.center), zoom=args.zoom,
         start=(end - timedelta(days=args.days)).isoformat(), end=end.isoformat(),
         max_items=args.max_items,
+        ping_interval=PING_INTERVAL,
     )
 
     url = f"http://localhost:{args.port}/"
@@ -187,16 +244,19 @@ def main(argv=None, prog=None):
               "Pick another one with --port, e.g. --port 8051", file=sys.stderr)
         return 1
     with httpd:
-        print(f"  rosarium webmap at {url}")
-        print(f"  path file: {args.path_file} ({args.style} style)")
-        print("  Ctrl+C to stop")
+        _banner(url, args)
         if args.open:
             # A short delay so the server is listening when the page loads
             threading.Timer(0.5, lambda: webbrowser.open(url)).start()
+        stop_watch = threading.Event()
+        if not args.stay:
+            threading.Thread(target=_watch_pages, args=(httpd, stop_watch), daemon=True).start()
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
             print("\n  Server stopped.")
+        finally:
+            stop_watch.set()
     return 0
 
 

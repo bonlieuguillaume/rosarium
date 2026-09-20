@@ -110,11 +110,23 @@ function toWkt(g) {
   return JSON.stringify(g);
 }
 
+// ─── LIVENESS ────────────────────────────────────────────────────
+// The server stops on its own once every page is gone (unless --stay): ping
+// while open, say goodbye when closing. sendBeacon is the one request a
+// browser still delivers while unloading the page.
+function startHeartbeat(intervalSeconds) {
+  const ping = () => fetch('/api/ping', { method: 'POST' }).catch(() => {});
+  ping();
+  setInterval(ping, intervalSeconds * 1000);
+  window.addEventListener('pagehide', () => navigator.sendBeacon('/api/bye'));
+}
+
 // ─── INIT ────────────────────────────────────────────────────────
 // Feature scripts register here what they set up from the config
 const initHooks = [];
 window.addEventListener('DOMContentLoaded', () => guard(async () => {
   config = await api('/api/config');
   map.setView(config.center, config.zoom);
+  startHeartbeat(config.ping_interval);
   initHooks.forEach(fn => fn(config));
 }));

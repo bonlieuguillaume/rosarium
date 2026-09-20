@@ -60,12 +60,14 @@ python rosarium.py webmap --open
 python rosarium.py webmap --port 9000 --path-file C:/data/list.txt --days 60
 ```
 
-The page opens on <http://localhost:8050>; Ctrl+C in the terminal stops it.
-Path files land in `data/utils/` by default, with the AOI next to them.
+The page opens on <http://localhost:8050>. The server stops on its own a few
+seconds after the last page is closed (reloading the page does not stop it);
+`--stay` keeps it running until Ctrl+C. Path files land in `data/utils/` by
+default, with the AOI next to them.
 
 **Desktop icon** — the launchers in `launch/` activate the env and run the
-command above; the console window they open is the server: keep it open while
-using the map, close it to stop.
+command above; the console window they open is the server, and it closes with
+the page.
 
 - Windows: double-click `launch/rosarium.bat`. For a desktop shortcut,
   double-click `launch/make_shortcut.bat` once: it writes `rosarium.lnk` on the
