@@ -1,0 +1,184 @@
+<graph id="Graph">
+  <version>1.0</version>
+
+  <!--
+    GATHERING: collocate the backscatter stack with the two coherence products
+    and split the result into a pre-event and a post-event GeoTIFF.
+
+    !! BAND NAMING CONTRACT — coupled with features/snap_gpt/snap_gpt.py !!
+
+    The Python side (_resolve_gathering_bands) does NOT parse the band names
+    written by SNAP (dates, _mst/_slv, subswath are unreliable). Instead it
+    PREDICTS the names Collocate will produce and passes them to BandSelect
+    via ${bands_pre} / ${bands_post}. That prediction relies on two things
+    that must stay in sync with this file:
+
+      1. The ORDER of the three sources in the Collocate node below:
+           sourceProduct    = ${input1} = backscatter stack -> reference -> suffix _M
+           sourceProduct.1  = ${input2} = coherence PRE     -> secondary 0 -> suffix _S0
+           sourceProduct.2  = ${input3} = coherence POST    -> secondary 1 -> suffix _S1
+         Swapping input2/input3 would silently swap pre and post coherence:
+         both products have the same number of bands, so nothing would fail.
+
+      2. ${reference_name} must be the backscatter product (input1). If another
+         product becomes the reference, the _M/_S0/_S1 suffixes move and
+         BandSelect will not find the expected bands.
+
+    Which backscatter band is pre vs post is decided upstream by
+    backscatter.xml: CreateStack lists master bands first, and
+    run_backscatter is always called with input1 = pre2 (master),
+    input2 = post1 (slave). Do not change that order either.
+
+    Do NOT re-save this graph from SNAP Desktop's Graph Builder without
+    checking that the source order above has been preserved.
+  -->
+
+  <!-- Three input reads -->
+  <node id="Read">
+    <operator>Read</operator>
+    <sources/>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <useAdvancedOptions>false</useAdvancedOptions>
+      <file>${input1}</file>
+      <copyMetadata>true</copyMetadata>
+      <bandNames/>
+      <pixelRegion/>
+      <maskNames/>
+    </parameters>
+  </node>
+  <node id="Read(2)">
+    <operator>Read</operator>
+    <sources/>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <useAdvancedOptions>false</useAdvancedOptions>
+      <file>${input2}</file>
+      <copyMetadata>true</copyMetadata>
+      <bandNames/>
+      <pixelRegion/>
+      <maskNames/>
+    </parameters>
+  </node>
+  <node id="Read(3)">
+    <operator>Read</operator>
+    <sources/>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <useAdvancedOptions>false</useAdvancedOptions>
+      <file>${input3}</file>
+      <copyMetadata>true</copyMetadata>
+      <bandNames/>
+      <pixelRegion/>
+      <maskNames/>
+    </parameters>
+  </node>
+
+  <!-- Merge -->
+  <!-- Source order is part of the naming contract (see header):
+       Read = backscatter (_M), Read(2) = coh pre (_S0), Read(3) = coh post (_S1) -->
+  <node id="Collocate">
+    <operator>Collocate</operator>
+    <sources>
+      <sourceProduct refid="Read"/>
+      <sourceProduct.1 refid="Read(2)"/>
+      <sourceProduct.2 refid="Read(3)"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <sourceProductPaths/>
+      <referenceProductName>${reference_name}</referenceProductName>
+      <targetProductName>_collocated</targetProductName>
+      <targetProductType>COLLOCATED</targetProductType>
+      <copySecondaryMetadata>true</copySecondaryMetadata>
+      <renameReferenceComponents>true</renameReferenceComponents>
+      <renameSecondaryComponents>true</renameSecondaryComponents>
+      <referenceComponentPattern>${ORIGINAL_NAME}_M</referenceComponentPattern>
+      <secondaryComponentPattern>${ORIGINAL_NAME}_S${SLAVE_NUMBER_ID}</secondaryComponentPattern>
+      <resamplingType>NEAREST_NEIGHBOUR</resamplingType>
+    </parameters>
+  </node>
+
+  <!-- Output branch: pre-event -->
+  <!-- ${bands_pre} = pre2 backscatter (master half of the stack, suffix _M)
+                    + pre-event coherence (suffix _S0)
+       Built by _resolve_gathering_bands from band positions, not from dates/subswath. -->
+  <node id="BandSelect">
+    <operator>BandSelect</operator>
+    <sources>
+      <sourceProduct refid="Collocate"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <selectedPolarisations/>
+      <selectedSubImages/>
+      <sourceBands>${bands_pre}</sourceBands>
+      <bandNamePattern/>
+      <sourceMasks/>
+      <includeReferences>false</includeReferences>
+    </parameters>
+  </node>
+  <node id="Write">
+    <operator>Write</operator>
+    <sources>
+      <sourceProduct refid="BandSelect"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <file>${output_pre}</file>
+      <formatName>GeoTIFF</formatName>
+    </parameters>
+  </node>
+
+  <!-- Output branch: post-event -->
+  <!-- ${bands_post} = post1 backscatter (slave half of the stack, suffix _M)
+                     + post-event coherence (suffix _S1)
+       Built by _resolve_gathering_bands from band positions, not from dates/subswath. -->
+  <node id="BandSelect(2)">
+    <operator>BandSelect</operator>
+    <sources>
+      <sourceProduct refid="Collocate"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <selectedPolarisations/>
+      <selectedSubImages/>
+      <sourceBands>${bands_post}</sourceBands>
+      <bandNamePattern/>
+      <sourceMasks/>
+      <includeReferences>false</includeReferences>
+    </parameters>
+  </node>
+  <node id="Write(2)">
+    <operator>Write</operator>
+    <sources>
+      <sourceProduct refid="BandSelect(2)"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <file>${output_post}</file>
+      <formatName>GeoTIFF</formatName>
+    </parameters>
+  </node>
+
+  <applicationData id="Presentation">
+    <Description>Brouillon pour orthorectification de SLC
+</Description>
+    <node id="Read">
+            <displayPosition x="36.0" y="74.0"/>
+    </node>
+    <node id="Read(2)">
+      <displayPosition x="36.0" y="147.0"/>
+    </node>
+    <node id="Read(3)">
+      <displayPosition x="37.0" y="219.0"/>
+    </node>
+    <node id="Collocate">
+      <displayPosition x="164.0" y="147.0"/>
+    </node>
+    <node id="BandSelect">
+      <displayPosition x="278.0" y="110.0"/>
+    </node>
+    <node id="Write">
+      <displayPosition x="385.0" y="109.0"/>
+    </node>
+    <node id="BandSelect(2)">
+      <displayPosition x="271.0" y="181.0"/>
+    </node>
+    <node id="Write(2)">
+      <displayPosition x="386.0" y="182.0"/>
+    </node>
+  </applicationData>
+</graph>

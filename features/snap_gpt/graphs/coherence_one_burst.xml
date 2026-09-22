@@ -1,0 +1,272 @@
+<graph id="Graph">
+  <version>1.0</version>
+
+  <!-- ==================================================================
+       coherence_one_burst.xml — coherence.xml WITHOUT the
+       Enhanced-Spectral-Diversity node.
+
+       Use it whenever TOPSAR-Split keeps a single burst
+       (first_burst == last_burst). ESD refines the azimuth coregistration
+       by measuring the phase difference in the overlap between CONSECUTIVE
+       bursts: with one burst there is no overlap, the estimate has nothing
+       to work on and the graph yields an empty product. Back-Geocoding
+       alone gives a coregistration good enough for coherence over a single
+       burst.
+
+       Everything else (nodes, parameters, ${...} placeholders, band names)
+       is identical to coherence.xml so that run_coherence can pick either
+       graph transparently and gathering.xml sees the same bands. Keep the
+       two files in sync when editing one of them.
+       ================================================================== -->
+
+  <!-- Branch 1: master product -->
+  <node id="Read">
+    <operator>Read</operator>
+    <sources/>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <useAdvancedOptions>false</useAdvancedOptions>
+      <file>${input1}</file>
+      <copyMetadata>true</copyMetadata>
+      <bandNames/>
+      <pixelRegion/>
+      <maskNames/>
+    </parameters>
+  </node>
+  <node id="Apply-Orbit-File">
+    <operator>Apply-Orbit-File</operator>
+    <sources>
+      <sourceProduct refid="Read"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <orbitType>Sentinel Precise (Auto Download)</orbitType>
+      <polyDegree>3</polyDegree>
+      <continueOnFail>false</continueOnFail>
+    </parameters>
+  </node>
+  <node id="TOPSAR-Split">
+    <operator>TOPSAR-Split</operator>
+    <sources>
+      <sourceProduct refid="Apply-Orbit-File"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <subswath>${subswath}</subswath>
+      <enableSingleSwathMode>false</enableSingleSwathMode>
+      <selectedPolarisations>VH,VV</selectedPolarisations>
+      <firstBurstIndex>${first_burst}</firstBurstIndex>
+      <lastBurstIndex>${last_burst}</lastBurstIndex>
+    </parameters>
+  </node>
+
+  <!-- Branch 2: secondary product -->
+  <node id="Read(2)">
+    <operator>Read</operator>
+    <sources/>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <useAdvancedOptions>false</useAdvancedOptions>
+      <file>${input2}</file>
+      <copyMetadata>true</copyMetadata>
+      <bandNames/>
+      <pixelRegion/>
+      <maskNames/>
+    </parameters>
+  </node>
+  <node id="Apply-Orbit-File(2)">
+    <operator>Apply-Orbit-File</operator>
+    <sources>
+      <sourceProduct refid="Read(2)"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <orbitType>Sentinel Precise (Auto Download)</orbitType>
+      <polyDegree>3</polyDegree>
+      <continueOnFail>false</continueOnFail>
+    </parameters>
+  </node>
+  <node id="TOPSAR-Split(2)">
+    <operator>TOPSAR-Split</operator>
+    <sources>
+      <sourceProduct refid="Apply-Orbit-File(2)"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <subswath>${subswath}</subswath>
+      <enableSingleSwathMode>false</enableSingleSwathMode>
+      <selectedPolarisations>VH,VV</selectedPolarisations>
+      <firstBurstIndex>${first_burst}</firstBurstIndex>
+      <lastBurstIndex>${last_burst}</lastBurstIndex>
+    </parameters>
+  </node>
+
+  <!-- Merged pipeline -->
+  <!-- MASTER = first source (${input1} branch): Back-Geocoding coregisters the
+       second source onto the first one. For coherence the master/slave order
+       does not matter downstream (one coh_<pol> band per polarisation, no
+       positional split); the pre/post distinction is carried by which product
+       is passed as input2 vs input3 of gathering.xml. -->
+  <node id="Back-Geocoding">
+    <operator>Back-Geocoding</operator>
+    <sources>
+      <sourceProduct refid="TOPSAR-Split"/>
+      <sourceProduct.1 refid="TOPSAR-Split(2)"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <demName>Copernicus 30m Global DEM</demName>
+      <demResamplingMethod>BICUBIC_INTERPOLATION</demResamplingMethod>
+      <externalDEMFile/>
+      <externalDEMNoDataValue>0.0</externalDEMNoDataValue>
+      <resamplingType>BISINC_5_POINT_INTERPOLATION</resamplingType>
+      <maskOutAreaWithoutElevation>true</maskOutAreaWithoutElevation>
+      <outputRangeAzimuthOffset>false</outputRangeAzimuthOffset>
+      <outputDerampDemodPhase>false</outputDerampDemodPhase>
+      <disableReramp>false</disableReramp>
+    </parameters>
+  </node>
+  <!-- No Enhanced-Spectral-Diversity here: see the header comment.
+       Coherence reads Back-Geocoding directly. -->
+  <node id="Coherence">
+    <operator>Coherence</operator>
+    <sources>
+      <sourceProduct refid="Back-Geocoding"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <cohWinAz>3</cohWinAz>
+      <cohWinRg>10</cohWinRg>
+      <subtractFlatEarthPhase>false</subtractFlatEarthPhase>
+      <srpPolynomialDegree>5</srpPolynomialDegree>
+      <srpNumberPoints>501</srpNumberPoints>
+      <orbitDegree>3</orbitDegree>
+      <squarePixel>true</squarePixel>
+      <subtractTopographicPhase>false</subtractTopographicPhase>
+      <demName>SRTM 3Sec</demName>
+      <externalDEMFile/>
+      <externalDEMNoDataValue>0.0</externalDEMNoDataValue>
+      <externalDEMApplyEGM>true</externalDEMApplyEGM>
+      <tileExtensionPercent>100</tileExtensionPercent>
+      <singleMaster>true</singleMaster>
+    </parameters>
+  </node>
+  <node id="TOPSAR-Deburst">
+    <operator>TOPSAR-Deburst</operator>
+    <sources>
+      <sourceProduct refid="Coherence"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <selectedPolarisations/>
+    </parameters>
+  </node>
+  <node id="Terrain-Correction">
+    <operator>Terrain-Correction</operator>
+    <sources>
+      <sourceProduct refid="TOPSAR-Deburst"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <sourceBands/>
+      <demName>Copernicus 30m Global DEM</demName>
+      <externalDEMFile/>
+      <externalDEMNoDataValue>0.0</externalDEMNoDataValue>
+      <externalDEMApplyEGM>true</externalDEMApplyEGM>
+      <demResamplingMethod>BILINEAR_INTERPOLATION</demResamplingMethod>
+      <imgResamplingMethod>BILINEAR_INTERPOLATION</imgResamplingMethod>
+      <pixelSpacingInMeter>10.0</pixelSpacingInMeter>
+      <pixelSpacingInDegree>8.983152841195215E-5</pixelSpacingInDegree>
+      <mapProjection>AUTO:42001</mapProjection>
+      <!-- Standard grid: snap the output grid so that pixel edges fall on
+           multiples of pixelSpacingInMeter counted from (0, 0) of the map CRS
+           (UTM easting/northing). Terrain-Correction interpolates exactly
+           once either way; this only fixes WHERE the grid is laid, instead of
+           at the product's own bounding-box corner. Every product of the same
+           UTM zone (other sub-swaths, other dates, the backscatter stack)
+           then lands on the same grid: mosaicking and Collocate become pure
+           copies, no second resampling. Same as GDAL's -tap. Products made
+           before this was switched on sit a fraction of a pixel off.
+           Keep identical in coherence.xml. -->
+      <alignToStandardGrid>true</alignToStandardGrid>
+      <standardGridOriginX>0.0</standardGridOriginX>
+      <standardGridOriginY>0.0</standardGridOriginY>
+      <nodataValueAtSea>true</nodataValueAtSea>
+      <saveDEM>false</saveDEM>
+      <saveLatLon>false</saveLatLon>
+      <saveIncidenceAngleFromEllipsoid>false</saveIncidenceAngleFromEllipsoid>
+      <saveLocalIncidenceAngle>false</saveLocalIncidenceAngle>
+      <saveProjectedLocalIncidenceAngle>false</saveProjectedLocalIncidenceAngle>
+      <saveSelectedSourceBand>true</saveSelectedSourceBand>
+      <saveLayoverShadowMask>false</saveLayoverShadowMask>
+      <outputComplex>false</outputComplex>
+      <applyRadiometricNormalization>false</applyRadiometricNormalization>
+      <saveSigmaNought>false</saveSigmaNought>
+      <saveGammaNought>false</saveGammaNought>
+      <saveBetaNought>false</saveBetaNought>
+      <incidenceAngleForSigma0>Use projected local incidence angle from DEM</incidenceAngleForSigma0>
+      <incidenceAngleForGamma0>Use projected local incidence angle from DEM</incidenceAngleForGamma0>
+      <auxFile>Latest Auxiliary File</auxFile>
+      <externalAuxFile/>
+    </parameters>
+  </node>
+  <node id="Subset">
+    <operator>Subset</operator>
+    <sources>
+      <sourceProduct refid="Terrain-Correction"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <sourceBands/>
+      <tiePointGrids/>
+      <region>0,0,0,0</region>
+      <referenceBand/>
+      <geoRegion>${aoi}</geoRegion>
+      <subSamplingX>1</subSamplingX>
+      <subSamplingY>1</subSamplingY>
+      <fullSwath>false</fullSwath>
+      <vectorFile/>
+      <polygonRegion/>
+      <copyMetadata>true</copyMetadata>
+    </parameters>
+  </node>
+  <node id="Write">
+    <operator>Write</operator>
+    <sources>
+      <sourceProduct refid="Subset"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <file>${output}</file>
+      <formatName>BEAM-DIMAP</formatName>
+    </parameters>
+  </node>
+
+  <applicationData id="Presentation">
+    <Description>coherence.xml without Enhanced-Spectral-Diversity, for AOIs covering a single burst (ESD needs the overlap between consecutive bursts). Selected automatically by run_coherence when first_burst == last_burst.</Description>
+    <node id="Read">
+      <displayPosition x="99.0" y="24.0"/>
+    </node>
+    <node id="Read(2)">
+      <displayPosition x="107.0" y="287.0"/>
+    </node>
+    <node id="Apply-Orbit-File">
+      <displayPosition x="82.0" y="60.0"/>
+    </node>
+    <node id="Apply-Orbit-File(2)">
+      <displayPosition x="85.0" y="248.0"/>
+    </node>
+    <node id="TOPSAR-Split">
+      <displayPosition x="90.0" y="100.0"/>
+    </node>
+    <node id="TOPSAR-Split(2)">
+      <displayPosition x="91.0" y="210.0"/>
+    </node>
+    <node id="Back-Geocoding">
+      <displayPosition x="146.0" y="155.0"/>
+    </node>
+    <node id="Coherence">
+      <displayPosition x="485.0" y="85.0"/>
+    </node>
+    <node id="TOPSAR-Deburst">
+      <displayPosition x="483.0" y="142.0"/>
+    </node>
+    <node id="Terrain-Correction">
+      <displayPosition x="478.0" y="194.0"/>
+    </node>
+    <node id="Subset">
+      <displayPosition x="506.0" y="244.0"/>
+    </node>
+    <node id="Write">
+      <displayPosition x="507.0" y="288.0"/>
+    </node>
+  </applicationData>
+</graph>

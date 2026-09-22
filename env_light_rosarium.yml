@@ -3,7 +3,7 @@ channels:
   - conda-forge
 dependencies:
   - python=3.11
-  # shared by both tools
+  # shared by several features
   - ipykernel
   - geopandas
   - shapely
@@ -14,3 +14,6 @@ dependencies:
   - requests
   - ipyleaflet
   - ipywidgets
+  # snap_gpt: band cleanup, GRD split, mosaic (SNAP itself and rclone are
+  # installed outside conda, see the READMEs of snap_gpt / download_products)
+  - gdal

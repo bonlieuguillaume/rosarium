@@ -11,7 +11,9 @@ directly with the same options.
 import argparse
 import fnmatch
 import json
+import math
 import sys
+import warnings
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
@@ -24,7 +26,8 @@ from shapely.errors import ShapelyError
 from shapely.geometry import MultiPolygon, Polygon, shape
 from shapely.ops import unary_union
 
-DEFAULT_COARSE_MARGIN = 0.02  # degrees, ~2 km
+DEFAULT_COARSE_MARGIN = 2000  # metres
+METRES_PER_DEGREE = 111_320  # one degree of latitude, or of longitude at the equator
 
 
 def _geometry_from_geojson(obj):
@@ -232,6 +235,23 @@ def load_burst_footprints(slc_path):
     return gpd.GeoDataFrame(records, crs="EPSG:4326")
 
 
+def _margin_in_degrees(margin_m, footprints):
+    """Degrees covering a ground distance at the latitude of the footprints.
+
+    The footprints stay in lon/lat, so the dilation is done in degrees. A
+    degree of latitude is ~111 km everywhere, a degree of longitude only
+    111 km x cos(latitude): the longitude figure, the larger, is used so that
+    the margin reaches at least margin_m in every direction. Along the
+    meridian it then over-reaches at high latitude, which is the safe side for
+    a recall-oriented test. Converting the margin rather than reprojecting the
+    footprints keeps the antimeridian frame ([0, 360) longitudes) valid.
+    """
+    # Mean latitude from the bounds: centroid() would warn on a geographic CRS
+    _, lat_min, _, lat_max = footprints.total_bounds
+    lat = math.radians(abs(lat_min + lat_max) / 2)
+    return margin_m / (METRES_PER_DEGREE * math.cos(lat))
+
+
 def get_intersecting_bursts(
     slc_path, polygon, coarse=False, coarse_margin=DEFAULT_COARSE_MARGIN
 ):
@@ -252,7 +272,7 @@ def get_intersecting_bursts(
         returns the neighbouring bursts, whose valid data extend beyond the
         edge-matched footprints.
     coarse_margin : float
-        Dilation margin in degrees (0.02 ~ 2 km). Ignored when coarse=False.
+        Dilation margin in metres (default 2000). Ignored when coarse=False.
 
     Returns
     -------
@@ -271,9 +291,15 @@ def get_intersecting_bursts(
     )
 
     footprints = load_burst_footprints(slc_path)
-    test_footprints = (
-        footprints.buffer(coarse_margin) if coarse else footprints.geometry
-    )
+    if coarse:
+        with warnings.catch_warnings():
+            # The buffer is deliberately applied in degrees, sized for this
+            # latitude by _margin_in_degrees: geopandas' "buffer in a
+            # geographic CRS" warning does not apply
+            warnings.filterwarnings("ignore", message="Geometry is in a geographic CRS")
+            test_footprints = footprints.buffer(_margin_in_degrees(coarse_margin, footprints))
+    else:
+        test_footprints = footprints.geometry
     # The result keeps the original, undilated geometries
     hits = footprints[test_footprints.intersects(test_geom)].copy()
     summary = (
@@ -338,7 +364,7 @@ def _build_parser(prog=None):
         required=True,
         metavar="AOI",
         help="area of interest, in lon/lat EPSG:4326: an inline WKT string, or "
-        "a path to a WKT or GeoJSON file. Inline GeoJSON is not accepted — pass "
+        "a path to a WKT or GeoJSON file. Inline GeoJSON is not accepted - pass "
         "it as a file",
     )
     parser.add_argument(
@@ -352,9 +378,9 @@ def _build_parser(prog=None):
         "--coarse-margin",
         type=float,
         default=DEFAULT_COARSE_MARGIN,
-        metavar="DEG",
-        help="dilation margin in degrees used by --coarse "
-        f"(default: {DEFAULT_COARSE_MARGIN}, i.e. ~2 km)",
+        metavar="METRES",
+        help="dilation margin in metres used by --coarse "
+        f"(default: {DEFAULT_COARSE_MARGIN})",
     )
     parser.add_argument(
         "--json",

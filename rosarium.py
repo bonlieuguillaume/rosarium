@@ -1,6 +1,10 @@
 """rosarium — one entry point for the tools of this repository.
 
     python rosarium.py webmap --open              # the webmap in the browser
+    python rosarium.py download                   # the listed products, with rclone
+    python rosarium.py slc --pre1 ... --output x  # four SLC -> pre/post gamma0 + coherence
+    python rosarium.py grd --pre ... --output x   # two GRD  -> pre/post gamma0
+    python rosarium.py gpt <step> ...             # one SNAP graph at a time
     python rosarium.py bursts --slc-path ... --polygon ...
     python rosarium.py --help                     # the list below
     python rosarium.py <command> --help           # the options of one command
@@ -22,6 +26,22 @@ PROG = "python rosarium.py"
 # command -> (module holding `main(argv, prog)`, one-line description)
 COMMANDS = {
     "webmap": ("frontend.server", "serve the webmap in the browser (AOI -> Sentinel-1 products)"),
+    "download": (
+        "features.download_products.download_products",
+        "download the products of a path file from CDSE with rclone (-> data/raw/<folder>)",
+    ),
+    "slc": (
+        "features.pre_post.pre_post_backscatter_coherence.pre_post_backscatter_coherence",
+        "four SLC (2 pre, 2 post) -> pre/post GeoTIFFs of gamma0 + coherence, through SNAP",
+    ),
+    "grd": (
+        "features.pre_post.pre_post_backscatter.pre_post_backscatter",
+        "two GRD (pre, post) -> pre/post GeoTIFFs of gamma0, through SNAP",
+    ),
+    "gpt": (
+        "features.snap_gpt.snap_gpt",
+        "one SNAP graph at a time: backscatter, coherence, gathering, backscatter-grd, mosaic",
+    ),
     "bursts": (
         "features.polygon_to_swaths_bursts.polygon_to_swaths_bursts",
         "which sub-swaths and bursts of a Sentinel-1 SLC product a polygon intersects",

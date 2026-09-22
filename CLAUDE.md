@@ -20,9 +20,13 @@ the layout and how a feature is added.
   `.svg`, `.png`). Testing them must not touch the user's real desktop: fake
   `HOME` (and `uname` for the macOS branch) in the scratchpad instead. The
   macOS branch has never run on a Mac.
-- **Every dependency must be installable from conda-forge.** Hard requirement:
-  no pip-only packages, no heavyweight SAR stacks (SNAP, ISCE, GAMMA) — the
-  features reimplement what they need from product metadata.
+- **Every Python dependency must be installable from conda-forge**, no
+  pip-only packages. Two external tools are installed on the machine, each
+  used by one feature and called as a sub-process: SNAP (`gpt`, the pre/post
+  pipelines) and rclone (`download`). Both are located at runtime, never
+  hard-coded, and their feature's README says how to install them. Adding a
+  third external dependency is a decision to bring to the user, not to take:
+  ask whether it is worth it before writing code that needs it.
 - `frontend/server.py` is standard library only; the page loads Leaflet and the
   basemaps from the web.
 
@@ -53,9 +57,14 @@ the layout and how a feature is added.
   lost. Re-read the cell immediately before writing it, carry the current
   values across verbatim, and if a value cannot be confirmed, ask instead of
   guessing.
-- `data/` holds the user's products (`raw/`), outputs (`preprocessed/`) and
-  intermediates (`utils/`: path files, AOIs). Only the `.gitkeep` files are
-  versioned; defaults point there (`data/utils/products.txt`).
+- `data/` holds the user's products (`raw/<folder>/`), outputs
+  (`preprocessed/`) and intermediates (`utils/`: path files, AOIs). Only the
+  `.gitkeep` files are versioned. The defaults chain the features together:
+  `aoi_to_slc` and the webmap write `data/utils/list.txt`, which `download`
+  reads and copies into `data/raw/vrac/`; the pre/post pipelines write
+  `data/preprocessed/pre_post/<name>/`, with `temp/` for the `.dim`
+  intermediates and `default/` for unnamed runs. Keep the two ends in sync
+  when changing one.
 
 ## Conventions
 
@@ -67,8 +76,9 @@ the layout and how a feature is added.
   run from their own folder.
 - `polygon_to_swaths_bursts` exists as both a notebook and a module holding
   the same functions (the CLI part is module-only): any change to a function
-  must be applied to the two in the same edit. `aoi_to_slc.ipynb` only drives
-  its module — not a mirror.
+  must be applied to the two in the same edit. The other notebooks
+  (`aoi_to_slc`, the two `pre_post`) only drive their module — not mirrors.
+  `snap_gpt` and `download_products` have no notebook: they are commands.
 - A notebook whose opening markdown cell describes what each cell does keeps
   that description in sync: adding, removing or reordering a cell means
   updating the table in the same edit. A stale walkthrough is worse than none.
@@ -105,11 +115,34 @@ longer helps.
   `IW_GRDH_1S-COG` folder), accepted deliberately since the user's chain runs
   SNAP 13 (COG readable from SNAP 10). If originals are ever needed, CDSE
   OData lists both with `S3Path`: rewrite `search_products` only.
+- `features/download_products/` — the path file, downloaded: one parallel
+  `rclone copy` from the CDSE `eodata` bucket, then every `.SAFE` flattened
+  into `data/raw/<folder>/` (`vrac` by default). CLI only
+  (`rosarium.py download`), standard library on the Python side. The user
+  configures the `cdse:` remote themselves (`rclone config`).
+- `features/snap_gpt/` — the SNAP graphs (`graphs/*.xml`) and their runner:
+  one function per graph, `run_mosaic` (GDAL + scipy, no SNAP), the `gpt`
+  wrapper and its memory options, exposed step by step as `rosarium.py gpt
+  <step>`. No notebook. `gpt` is located by `find_gpt()`, never hard-coded.
+  **The graphs and the Python are coupled**: band names are predicted, not
+  parsed, from the source order in the XML and the Collocate suffixes — the
+  contract is in the header comment of `gathering.xml` and the docstring of
+  `_resolve_gathering_bands`. Read both before editing a graph.
+  `coherence.xml` and `coherence_one_burst.xml` are the same graph minus
+  Enhanced-Spectral-Diversity: change them together.
+- `features/pre_post/` — the two pipelines that chain `snap_gpt`, both
+  writing `<name>_pre.tif` / `<name>_post.tif` into
+  `data/preprocessed/pre_post/<name>/`: `pre_post_backscatter_coherence/`
+  (4 SLC -> gamma0 + coherence, `rosarium.py slc`, `main_preprocess`) and
+  `pre_post_backscatter/` (2 GRD -> gamma0 only, `rosarium.py grd`,
+  `main_preprocess_grd`). Each has a notebook driving its module.
 - `features/polygon_to_swaths_bursts/` — Sentinel-1 SLC: which sub-swaths and
   bursts a polygon intersects, read from the product annotation XML without
   touching the image data. Module + CLI (`rosarium.py bursts`), a mirrored
   notebook, and a `README.md` detailing the algorithm, its accuracy limits and
-  its usage. Not in the front-end yet: planned as the intermediate result of a
-  later processing feature.
+  its usage. Used by `snap_gpt` to drive TOPSAR-Split (coarse mode there, the
+  module itself defaults to strict). Not in the front-end yet.
 - Not ported from the `geo` repo: `asf/` (gamma0 RTC through ASF HyP3). Left
-  out on purpose.
+  out on purpose. Still in `vigisar`, to be removed once the move is
+  validated: `src/preprocess/`, `utils/parallel_download.py`,
+  `vigisar_graphs/`.

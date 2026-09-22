@@ -42,7 +42,8 @@ from features.aoi_to_slc.aoi_to_slc import DEFAULT_STYLE, S3_PATH_STYLES  # noqa
 from frontend.api import aoi_to_slc as api_aoi_to_slc  # noqa: E402
 
 STATIC = HERE / "static"
-DEFAULT_PATH_FILE = ROOT / "data" / "utils" / "products.txt"
+# Also what `rosarium.py download` reads by default: the two ends meet there
+DEFAULT_PATH_FILE = ROOT / "data" / "utils" / "list.txt"
 
 # The api modules serving the page, each with a `ROUTES` dict
 # {"GET": {path: fn}, "POST": {path: fn}} whose functions take (body, config).
@@ -188,7 +189,7 @@ def _build_parser(prog=None):
     parser.add_argument(
         "--path-file", default=str(DEFAULT_PATH_FILE),
         help="default path file, editable in the page; a relative path resolves against "
-        "the repository root (default: data/utils/products.txt)",
+        "the repository root (default: data/utils/list.txt, what `download` reads)",
     )
     parser.add_argument(
         "--style", choices=list(S3_PATH_STYLES), default=DEFAULT_STYLE,

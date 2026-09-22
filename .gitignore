@@ -34,3 +34,12 @@ data/utils/*
 *.tif
 *.tiff
 *.nc
+# SNAP intermediate products (BEAM-DIMAP: header + band folder)
+*.dim
+*.data/
+
+# --- SNAP / JVM ---
+# Crash reports written by the Java VM when gpt dies (out of memory...). They
+# land in the current directory of the process, i.e. wherever the pipeline
+# was launched from — hence no leading path.
+hs_err_pid*.log

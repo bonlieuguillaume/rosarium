@@ -48,6 +48,9 @@ S3_PATH_STYLES = {
 }
 DEFAULT_STYLE = "mount"
 
+# Default path file: also what `rosarium.py download` reads
+DEFAULT_PATH_FILE = Path(__file__).resolve().parents[2] / "data" / "utils" / "list.txt"
+
 PAGE_SIZE = 100          # items per STAC page; the server accepts up to 200
 DEFAULT_MAX_ITEMS = 500
 
@@ -411,7 +414,7 @@ class AoiToSlcUI:
 
     def __init__(
         self,
-        path_file="path_files/products.txt",
+        path_file=DEFAULT_PATH_FILE,
         style=DEFAULT_STYLE,
         center=(46.5, 2.5),
         zoom=6,

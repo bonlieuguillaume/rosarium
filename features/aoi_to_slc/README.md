@@ -18,8 +18,10 @@ downloaded here and no credentials are needed.
   (`frontend/api/aoi_to_slc.py`) with this module's functions; the page does
   the map, the drawing and the list (`frontend/static/aoi_to_slc.js`).
 
-Path files land in `data/utils/` by default (`products.txt`, plus the AOI as
-`products_aoi.geojson`); the folder's content is not versioned.
+Path files land in `data/utils/` by default (`list.txt`, plus the AOI as
+`list_aoi.geojson`); the folder's content is not versioned. `list.txt` is
+also what `python rosarium.py download` (`features/download_products/`) reads
+by default, so the two steps chain without an argument.
 
 ## Backend: the CDSE STAC catalogue, hit directly
 
