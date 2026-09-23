@@ -7,6 +7,8 @@ dependencies:
   - ipykernel
   - geopandas
   - shapely
+  # download_products
+  - rclone
   # polygon_to_swaths_bursts
   - numpy
   - folium
@@ -14,6 +16,6 @@ dependencies:
   - requests
   - ipyleaflet
   - ipywidgets
-  # snap_gpt: band cleanup, GRD split, mosaic (SNAP itself and rclone are
+  # snap_gpt: band cleanup, GRD split, mosaic (SNAP itself is
   # installed outside conda, see the READMEs of snap_gpt / download_products)
   - gdal
