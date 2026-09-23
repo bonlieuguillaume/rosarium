@@ -9,8 +9,9 @@ every product at once, then flattens the resulting date/mission tree so every
     python rosarium.py download                     # data/utils/list.txt -> data/raw/vrac/
     python rosarium.py download --list my.txt --folder zta1
 
-rclone is an external tool: install it and configure a remote for the CDSE
-S3 endpoint (`rclone config`, named `cdse` by default — see the README).
+rclone comes from conda-forge with the env, but its remote for the CDSE S3
+endpoint is configured once by the user (`rclone config`, named `cdse` by
+default — see the README).
 """
 
 import argparse
@@ -103,9 +104,10 @@ def run_rclone_copy(
     rclone = shutil.which("rclone")
     if rclone is None:
         raise FileNotFoundError(
-            "rclone not found on the PATH: install it (https://rclone.org/install/ "
-            "or the conda-forge package `rclone`) and configure the remote with "
-            "`rclone config` (see the README of features/download_products)."
+            "rclone not found on the PATH. It ships with the rosarium env: activate "
+            "the env, or update it from env_light_rosarium.yml if the package is "
+            "missing. The CDSE remote itself is configured once with `rclone config` "
+            "(see the README of features/download_products)."
         )
     cmd = [
         rclone, "copy", remote, ".",
@@ -206,8 +208,10 @@ def _build_parser(prog=None):
             "single parallelized `rclone copy` for every product at once, then flattens\n"
             "the resulting mission/date tree so every .SAFE ends up directly under\n"
             "data/raw/<folder>/.\n\n"
-            "Needs rclone on the PATH and a remote configured for the CDSE S3 endpoint\n"
-            "(`rclone config`; the default remote name is `cdse`, bucket `eodata`)."
+            "rclone comes with the rosarium env; what it needs is a remote configured\n"
+            "once for the CDSE S3 endpoint, with your own keys from\n"
+            "https://eodata-s3keysmanager.dataspace.copernicus.eu/ (`rclone config`;\n"
+            "the default remote name is `cdse`, bucket `eodata`)."
         ),
         epilog=(
             "examples:\n"

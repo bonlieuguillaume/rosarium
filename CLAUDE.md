@@ -20,13 +20,14 @@ the layout and how a feature is added.
   `.svg`, `.png`). Testing them must not touch the user's real desktop: fake
   `HOME` (and `uname` for the macOS branch) in the scratchpad instead. The
   macOS branch has never run on a Mac.
-- **Every Python dependency must be installable from conda-forge**, no
-  pip-only packages. Two external tools are installed on the machine, each
-  used by one feature and called as a sub-process: SNAP (`gpt`, the pre/post
-  pipelines) and rclone (`download`). Both are located at runtime, never
-  hard-coded, and their feature's README says how to install them. Adding a
-  third external dependency is a decision to bring to the user, not to take:
-  ask whether it is worth it before writing code that needs it.
+- **Every dependency must come from conda-forge**, no pip-only packages.
+  Two binaries are called as sub-processes rather than imported: rclone
+  (`download`), which is a conda-forge package like the rest, and SNAP's
+  `gpt` (the pre/post pipelines), the one thing installed outside the env by
+  the user. Both are located at runtime (`find_gpt`, `shutil.which`), never
+  hard-coded. Anything else that would have to be installed by hand is a
+  decision to bring to the user, not to take: ask whether it is worth it
+  before writing code that needs it.
 - `frontend/server.py` is standard library only; the page loads Leaflet and the
   basemaps from the web.
 
@@ -119,7 +120,9 @@ longer helps.
   `rclone copy` from the CDSE `eodata` bucket, then every `.SAFE` flattened
   into `data/raw/<folder>/` (`vrac` by default). CLI only
   (`rosarium.py download`), standard library on the Python side. The user
-  configures the `cdse:` remote themselves (`rclone config`).
+  configures the `cdse:` remote themselves (`rclone config`); that config is
+  per user (`%APPDATA%\rclone\`, `~/.config/rclone/`), not per env, so it
+  outlives reinstalling the binary.
 - `features/snap_gpt/` — the SNAP graphs (`graphs/*.xml`) and their runner:
   one function per graph, `run_mosaic` (GDAL + scipy, no SNAP), the `gpt`
   wrapper and its memory options, exposed step by step as `rosarium.py gpt

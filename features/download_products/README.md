@@ -30,16 +30,18 @@ notebook: it is a command.
 The download resumes: rclone skips files already complete, so an interrupted
 run is simply launched again.
 
-## rclone: the external dependency
+## Configuring rclone
 
-rclone is a single binary, not a Python package: install it from
-<https://rclone.org/install/> (or `conda install -c conda-forge rclone`) and
-make sure `rclone` is on the PATH of the terminal running rosarium.
+rclone is not a Python package but a single binary; it comes from conda-forge
+with the rest of the env (`rclone` in `env_light_rosarium.yml`), so there is
+nothing to download. It lands in `<env>/bin/` and is on the PATH as soon as
+the env is activated — which is what the launchers of `launch/` do.
 
-Then configure a remote for the CDSE S3 endpoint, once, with `rclone config`
-(interactive) — or paste this section into the file that `rclone config file`
-points to, with your own keys, which come from
-<https://eodata-s3keysmanager.dataspace.copernicus.eu/>:
+What does need doing once, and only once, is the **remote**: the binary knows
+nothing of CDSE until it is given your S3 keys, which come from
+<https://eodata-s3keysmanager.dataspace.copernicus.eu/>. Either run
+`rclone config` (interactive) or paste this section into the file that
+`rclone config file` points to:
 
 ```
 [cdse]
@@ -50,6 +52,10 @@ secret_access_key = <your secret key>
 endpoint = https://eodata.dataspace.copernicus.eu
 region = default
 ```
+
+That config file is **per user, not per environment** (`%APPDATA%\rclone\` on
+Windows, `~/.config/rclone/` elsewhere): it is written once and survives
+reinstalling, moving or replacing the binary.
 
 The remote name (`cdse`) and bucket (`eodata`) are the default of `--remote`;
 another name is passed as `--remote name:eodata`. Check with
@@ -83,4 +89,5 @@ parallel_download("data/utils/list.txt", folder="zta1")   # -> Path to data/raw/
 
 ## Dependencies
 
-Standard library only on the Python side; rclone on the machine (above).
+Standard library only on the Python side. rclone comes from conda-forge with
+the env; its CDSE remote is configured once (above).

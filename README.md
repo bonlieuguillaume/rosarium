@@ -61,15 +61,15 @@ mamba env create -f env_light_rosarium.yml       # first time
 mamba env update -n rosarium -f env_light_rosarium.yml
 ```
 
-Two tools are not Python packages and are installed on the machine, each
-needed by one feature only:
+Two things the env cannot do on its own:
 
-- **SNAP** (≥ 10) for the pre/post pipelines —
+- **SNAP** (≥ 10), for the pre/post pipelines, is installed separately —
   <https://step.esa.int/main/download/snap-download/>. Only its `gpt` runner is
   used; it is looked up in `SNAP_GPT`, on the PATH, then in the usual install
   folders, and `--gpt PATH` overrides that.
-- **rclone** for `download` — <https://rclone.org/install/>, plus one
-  `rclone config` for the CDSE remote (see the feature's README).
+- **rclone** comes with the env, but its CDSE remote is configured once, with
+  your own S3 keys — see the README of
+  [`download_products`](features/download_products/README.md).
 
 ## Usage
 
