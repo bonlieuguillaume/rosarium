@@ -20,14 +20,17 @@ the layout and how a feature is added.
   `.svg`, `.png`). Testing them must not touch the user's real desktop: fake
   `HOME` (and `uname` for the macOS branch) in the scratchpad instead. The
   macOS branch has never run on a Mac.
-- **Every dependency must come from conda-forge**, no pip-only packages.
-  Two binaries are called as sub-processes rather than imported: rclone
-  (`download`), which is a conda-forge package like the rest, and SNAP's
-  `gpt` (the pre/post pipelines), the one thing installed outside the env by
-  the user. Both are located at runtime (`find_gpt`, `shutil.which`), never
-  hard-coded. Anything else that would have to be installed by hand is a
-  decision to bring to the user, not to take: ask whether it is worth it
-  before writing code that needs it.
+- **Every dependency must come from conda-forge and exist on the three OSes**,
+  no pip-only packages, nothing Windows-only. Two binaries are called as
+  sub-processes rather than imported: rclone (`download`), which is a
+  conda-forge package like the rest, and SNAP's `gpt` (the pre/post
+  pipelines), the one thing installed outside the env by the user. Both ship
+  for Windows, Linux and macOS, and both are located at runtime (`find_gpt`,
+  `shutil.which`), never hard-coded — a lookup that covers the three
+  platforms, not just the one at hand. Anything else that would have to be
+  installed by hand is a decision to bring to the user, not to take: ask
+  whether it is worth it, and whether it runs everywhere, before writing code
+  that needs it.
 - `frontend/server.py` is standard library only; the page loads Leaflet and the
   basemaps from the web.
 
@@ -47,6 +50,10 @@ the layout and how a feature is added.
   tools. Anything that launches or installs ships in every form in `launch/`
   (`.bat` + `.sh` + `.command`). Line endings are pinned by `.gitattributes`
   (`.sh`/`.command` LF, `.bat` CRLF): keep new file kinds in there.
+  This binds what goes **into the repo**, not the conversation: commands the
+  user is meant to type, one-off checks and troubleshooting can be Windows-
+  only, since that is the machine they work on — no need to give the three
+  variants or to hedge, unless they ask.
 - Windows shells: the "Miniforge Prompt" is `cmd.exe` (no `PS` in the prompt);
   VS Code's integrated terminal is PowerShell. Shell quoting differs between
   the two — matters when documenting CLI examples. Console output must stay
@@ -85,6 +92,10 @@ the layout and how a feature is added.
   updating the table in the same edit. A stale walkthrough is worse than none.
 - Command-line tools expose `main(argv=None, prog=None)`; `rosarium.py` passes
   `prog="python rosarium.py <command>"` so usage and examples match the call.
+  Features grouped in one folder (`features/pre_post/`) become a group of
+  sub-commands in `COMMANDS` (a dict as target), named after the folders:
+  `rosarium.py <group> <sub-command>`. A top-level command names a feature,
+  not a product type.
 - Front-end: `frontend/api/<feature>.py` holds `ROUTES = {"GET": {}, "POST":
   {}}` of functions `(body, config) -> JSON-able`; `frontend/static/map.js`
   owns the map, the single AOI, the status line, `api()` and the liveness
@@ -132,13 +143,19 @@ longer helps.
   contract is in the header comment of `gathering.xml` and the docstring of
   `_resolve_gathering_bands`. Read both before editing a graph.
   `coherence.xml` and `coherence_one_burst.xml` are the same graph minus
-  Enhanced-Spectral-Diversity: change them together.
+  Enhanced-Spectral-Diversity: change them together. The UTM zone is chosen
+  per graph run (`AUTO:42001`), so sub-swaths or backscatter/coherence can
+  land in different zones; `run_mosaic` and `Collocate` absorb it with one
+  extra nearest-neighbour reprojection, silently (README, *UTM zone*).
+  Forcing the zone from the AOI is a known possible improvement, not done.
 - `features/pre_post/` — the two pipelines that chain `snap_gpt`, both
   writing `<name>_pre.tif` / `<name>_post.tif` into
   `data/preprocessed/pre_post/<name>/`: `pre_post_backscatter_coherence/`
-  (4 SLC -> gamma0 + coherence, `rosarium.py slc`, `main_preprocess`) and
-  `pre_post_backscatter/` (2 GRD -> gamma0 only, `rosarium.py grd`,
-  `main_preprocess_grd`). Each has a notebook driving its module.
+  (4 SLC -> gamma0 + coherence, `main_preprocess`) and
+  `pre_post_backscatter/` (2 GRD -> gamma0 only, `main_preprocess_grd`).
+  Each has a notebook driving its module. On the command line they form the
+  group `rosarium.py pre_post <backscatter_coherence|backscatter>`, the
+  sub-command named after the folder.
 - `features/polygon_to_swaths_bursts/` — Sentinel-1 SLC: which sub-swaths and
   bursts a polygon intersects, read from the product annotation XML without
   touching the image data. Module + CLI (`rosarium.py bursts`), a mirrored
@@ -146,6 +163,8 @@ longer helps.
   its usage. Used by `snap_gpt` to drive TOPSAR-Split (coarse mode there, the
   module itself defaults to strict). Not in the front-end yet.
 - Not ported from the `geo` repo: `asf/` (gamma0 RTC through ASF HyP3). Left
-  out on purpose. Still in `vigisar`, to be removed once the move is
-  validated: `src/preprocess/`, `utils/parallel_download.py`,
-  `vigisar_graphs/`.
+  out on purpose.
+- `download_products`, `snap_gpt` and `pre_post` come from the `vigisar` repo
+  (`utils/parallel_download.py`, `src/preprocess/`, `vigisar_graphs/`), where
+  they no longer exist: vigisar keeps only the change detection, fed by the
+  `pre_post` GeoTIFFs. Its git history has the original code.

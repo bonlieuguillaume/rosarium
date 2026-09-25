@@ -6,7 +6,7 @@ pre-event coherence, post-event coherence, gathering, mosaic when the AOI
 spans several sub-swaths — and come out as two GeoTIFFs, `<name>_pre.tif`
 and `<name>_post.tif`, each holding gamma0_VH, gamma0_VV, coh_VH, coh_VV.
 
-    python rosarium.py slc --pre1 ... --pre2 ... --post1 ... --post2 ... --aoi aoi.geojson --output zta1
+    python rosarium.py pre_post backscatter_coherence --pre1 ... --pre2 ... --post1 ... --post2 ... --aoi aoi.geojson --output zta1
 
 Usable as a library too: `main_preprocess(...)` returns the two paths.
 """
@@ -171,8 +171,9 @@ DEFAULT_PROG = "python pre_post_backscatter_coherence.py"
 
 
 def _build_parser(prog=None):
-    # `prog` is how the user invoked the tool — "python rosarium.py slc" from
-    # the repository entry point — so that usage and examples match
+    # `prog` is how the user invoked the tool — "python rosarium.py pre_post
+    # backscatter_coherence" from the repository entry point — so that usage
+    # and examples match
     prog = prog or DEFAULT_PROG
     parser = argparse.ArgumentParser(
         prog=prog,

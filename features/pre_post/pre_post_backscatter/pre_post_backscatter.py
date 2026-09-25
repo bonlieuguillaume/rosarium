@@ -5,7 +5,7 @@ One acquisition before an event and one after it go through the GRD graph of
 speckle filter, terrain correction, clip — and come out as two GeoTIFFs,
 `<name>_pre.tif` and `<name>_post.tif`, each holding gamma0_VH and gamma0_VV.
 
-    python rosarium.py grd --pre ... --post ... --aoi aoi.geojson --output zta1
+    python rosarium.py pre_post backscatter --pre ... --post ... --aoi aoi.geojson --output zta1
 
 Usable as a library too: `main_preprocess_grd(...)` returns the two paths.
 """
@@ -115,8 +115,9 @@ DEFAULT_PROG = "python pre_post_backscatter.py"
 
 
 def _build_parser(prog=None):
-    # `prog` is how the user invoked the tool — "python rosarium.py grd" from
-    # the repository entry point — so that usage and examples match
+    # `prog` is how the user invoked the tool — "python rosarium.py pre_post
+    # backscatter" from the repository entry point — so that usage and
+    # examples match
     prog = prog or DEFAULT_PROG
     parser = argparse.ArgumentParser(
         prog=prog,

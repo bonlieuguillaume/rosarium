@@ -674,6 +674,14 @@ def run_gathering(
     Band assignment is derived automatically from the BEAM-DIMAP band names
     of the three inputs — no XML editing required.
 
+    Collocate lays everything on the grid of the backscatter product, the
+    reference.  The three inputs come from separate graph runs, each of
+    which chose its own UTM zone (``AUTO:42001``): when a coherence product
+    landed in another zone than the backscatter, Collocate resamples it
+    onto the backscatter grid (nearest neighbour), with no error or
+    warning — one extra reprojection of the coherence bands, gamma0 never
+    touched.  See *UTM zone* in the README.
+
     Args:
         input_backscatter (str): Path to the backscatter stack (.dim), output of
             ``run_backscatter``.  input1=pre2 and input2=post1 must have been
@@ -899,9 +907,16 @@ def run_mosaic(inputs: list[str], output: str) -> str:
     output never holds NaN: uncovered pixels are 0, the declared nodata.
 
     All inputs are first warped (nearest neighbour) onto the union grid of
-    the first input's CRS and resolution; with ``alignToStandardGrid`` in the
-    graphs this involves no resampling.  Everything is held in memory: for N
-    inputs of B bands over an H x W union, N x B x H x W float32.
+    the first input's CRS and resolution.  Inputs in the same UTM zone as the
+    first one are plain copies, thanks to ``alignToStandardGrid`` in the
+    graphs.  But the zone is chosen per graph run (``AUTO:42001``), so two
+    sub-swaths can land in different zones near a zone boundary: the tiles
+    of the other zone are then resampled once more, with no error or
+    warning — values kept, pixels moved by up to half a pixel, a few
+    isolated ones picked twice or not at all — and the output takes the
+    first input's zone.  See *UTM zone* in the README.  Everything is held
+    in memory: for N inputs of B bands over an H x W union, N x B x H x W
+    float32.
 
     If only one input is given the file is copied as-is.
 
@@ -1013,14 +1028,14 @@ def _build_parser(prog=None) -> argparse.ArgumentParser:
         prog=prog,
         description=(
             "Run one SNAP GPT graph of features/snap_gpt/graphs/ on Sentinel-1 products.\n\n"
-            "These are the building blocks of the pre/post pipelines (rosarium.py slc / grd),\n"
+            "These are the building blocks of the pre/post pipelines (rosarium.py pre_post),\n"
             "exposed one by one for step-by-step runs and debugging.\n\n"
-            "SLC steps (chained by `slc`):\n"
+            "SLC steps (chained by `pre_post backscatter_coherence`):\n"
             "  backscatter      Gamma0 backscatter stack via cross-correlation coregistration\n"
             "  coherence        coherence via ESD coregistration\n"
             "  gathering        collocate backscatter + coherence into pre/post GeoTIFFs\n"
             "  mosaic           merge per-subswath GeoTIFFs into one (no GPT involved)\n\n"
-            "GRD step (what `grd` runs):\n"
+            "GRD step (what `pre_post backscatter` runs):\n"
             "  backscatter-grd  Gamma0 backscatter from two GRD products (no subswath split)\n\n"
             f"Outputs go under data/preprocessed/pre_post/ (intermediates in temp/).\n"
             f"SNAP's gpt: {DEFAULT_GPT or 'NOT FOUND - install SNAP or pass --gpt'}"

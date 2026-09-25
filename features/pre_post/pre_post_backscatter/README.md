@@ -10,7 +10,7 @@ instead of four and a single graph. The graph itself lives in
 [`features/snap_gpt/`](../../snap_gpt/README.md).
 
 - `pre_post_backscatter.py` — `main_preprocess_grd(pre, post, aoi,
-  output_name, ...)` and the command line `python rosarium.py grd`.
+  output_name, ...)` and the command line `python rosarium.py pre_post backscatter`.
 - `pre_post_backscatter.ipynb` — a driver of the module: fill the parameters
   cell, run. Not a mirror.
 
@@ -44,13 +44,13 @@ SNAP from version 10.
 ## Usage
 
 ```
-python rosarium.py grd \
+python rosarium.py pre_post backscatter \
     --pre  data/raw/vrac/S1A_IW_GRDH_1SDV_20260816T..._COG.SAFE \
     --post data/raw/vrac/S1A_IW_GRDH_1SDV_20260828T..._COG.SAFE \
     --aoi data/utils/list_aoi.geojson --output zta1_grd
 
-python rosarium.py grd ... --xmx 10G --cache 3G --threads 4   # 16 GB laptop
-python rosarium.py grd --help
+python rosarium.py pre_post backscatter ... --xmx 10G --cache 3G --threads 4   # 16 GB laptop
+python rosarium.py pre_post backscatter --help
 ```
 
 `--aoi` takes an inline WKT polygon (quoted) or a WKT / GeoJSON file in lon/lat

@@ -113,22 +113,26 @@ icon files in `launch/` (`rosarium.ico` for Windows, `rosarium.svg` and
 `rosarium.png` for Linux and macOS), and run the `make_shortcut` script again.
 
 **Command line** — `python rosarium.py --help` lists the commands,
-`python rosarium.py <command> --help` the options of one. The whole chain,
-from the path file the webmap wrote to the final GeoTIFFs:
+`python rosarium.py <command> --help` the options of one. A command can be a
+group whose second word picks the tool: `pre_post` holds the two pipelines of
+`features/pre_post/`, named after their folders, and
+`python rosarium.py pre_post` lists them. The whole chain, from the path file
+the webmap wrote to the final GeoTIFFs:
 
 ```
 python rosarium.py download --folder zta1
 
-python rosarium.py slc --pre1 A.SAFE --pre2 B.SAFE --post1 C.SAFE --post2 D.SAFE \
+python rosarium.py pre_post backscatter_coherence \
+    --pre1 A.SAFE --pre2 B.SAFE --post1 C.SAFE --post2 D.SAFE \
     --aoi data/utils/list_aoi.geojson --output zta1_slc
-python rosarium.py grd --pre A.SAFE --post B.SAFE \
+python rosarium.py pre_post backscatter --pre A.SAFE --post B.SAFE \
     --aoi data/utils/list_aoi.geojson --output zta1_grd
 
 python rosarium.py gpt coherence --input1 A.SAFE --input2 B.SAFE --aoi aoi.geojson --pair pre
 python rosarium.py bursts --slc-path product.zip --polygon aoi.geojson --coarse
 ```
 
-The products land in `data/preprocessed/pre_post/<name>/`. `slc` and `grd`
+The products land in `data/preprocessed/pre_post/<name>/`. The two pipelines
 write there the same two file names, so name the run for what it holds. The
 four memory flags of every SNAP command (`--xmx`, `--cache`, `--threads`,
 `--tile-size`) are explained in the [`snap_gpt`](features/snap_gpt/README.md)
@@ -152,7 +156,9 @@ from features.pre_post.pre_post_backscatter.pre_post_backscatter import main_pre
 1. A folder in `features/<name>/` with `<name>.py`, its notebook and a README
    (a feature that is only a command can skip the notebook).
 2. Terminal use: give the module a `main(argv=None, prog=None)` and add one
-   entry to `COMMANDS` in `rosarium.py`.
+   entry to `COMMANDS` in `rosarium.py`. Features grouped in a folder, like
+   `features/pre_post/`, go into a group entry instead (a dict of
+   sub-commands): `python rosarium.py <group> <sub-command>`.
 3. Map use: a `frontend/api/<name>.py` exposing `ROUTES` (functions taking
    `(body, config)`), listed in `FEATURES` of `frontend/server.py`; a
    `frontend/static/<name>.js` loaded after `map.js`, whose sidebar sections go

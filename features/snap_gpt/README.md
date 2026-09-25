@@ -69,7 +69,7 @@ rationale is in the comment block at the top of `snap_gpt.py`.
 | `--tile-size` | `512` | edge of the square tiles, pixels | a power of two (256/512/1024), to match the block size of files on disk and of pyramid levels. Leave at 512 unless you know why |
 
 Example, a large AOI on a 16 GB laptop:
-`python rosarium.py slc ... --xmx 10G --cache 3G --threads 4`.
+`python rosarium.py pre_post backscatter_coherence ... --xmx 10G --cache 3G --threads 4`.
 
 ## Conventions the graphs and the Python share
 
@@ -91,6 +91,38 @@ interpolates exactly once either way — this only fixes *where* the grid is lai
 coherence) then share one grid: `run_mosaic` and `Collocate` copy pixels instead
 of resampling them, and it is the same grid as GDAL's `-tap` or Sentinel-2's
 10 m tiles.
+
+**UTM zone: chosen per run, not per pipeline.** The zone comes from
+`mapProjection = AUTO:42001`: SNAP picks it from the centre of the product
+entering Terrain-Correction, **independently for every graph run**. In the SLC
+pipeline that is one run per sub-swath and per step (backscatter, coherence
+pre, coherence post), so they need not all land in the same zone — an AOI near
+a zone boundary (every 6° of longitude) is enough for the sub-swaths, ~250 km
+apart across the track, to fall on both sides. Nothing fails when that
+happens; the mismatch is absorbed downstream, at the cost of **one extra
+nearest-neighbour reprojection** of the data from the other zone:
+
+| Mismatch | Absorbed by | Consequence |
+| --- | --- | --- |
+| two sub-swaths in different zones | `run_mosaic` warps every tile onto the grid of the **first** input (IW1 when it is used) | the tiles of the other zone are resampled once more; the final GeoTIFF is in the first tile's zone, which is not necessarily the AOI's |
+| backscatter and coherence of one sub-swath in different zones | `Collocate` (gathering) resamples the coherence onto the backscatter grid, the reference | the coherence bands are resampled once more; gamma0 is never touched |
+
+That extra reprojection keeps every value as it was (nearest neighbour copies,
+it never blends), but moves pixels by up to half a pixel and, where the two
+rotated grids meet at a cell boundary, picks a few isolated source pixels twice
+and their neighbour not at all. A loss of rigour, not a visible defect. What
+stays guaranteed: the `_pre.tif` and `_post.tif` of one run always share one
+zone and one grid (same Collocate, then two mosaics over the tiles in the same
+order), so a pre/post comparison is never misaligned. Across **separate** runs —
+a GRD and an SLC run of the same AOI, or two AOIs — nothing reconciles the
+zones: their outputs may be in different projections and need a reprojection
+before a pixel-by-pixel comparison. The GRD pipeline has a single
+Terrain-Correction, hence a single zone per run.
+
+Possible improvement, not done: compute the zone once from the AOI centroid and
+pass it to the four Terrain-Correction nodes as a graph parameter instead of
+`AUTO:42001`. Every tile would then be terrain-corrected straight onto the
+final grid, and every run of an AOI would share its projection.
 
 **Band naming & master/slave.** SNAP band names (dates, `_mst`/`_slv`,
 sub-swath) are unreliable, so the Python never parses them: it relies on the
@@ -114,8 +146,10 @@ non-zero; distance transform from scipy). Adjacent sub-swaths overlap by 1–2 k
 and each tile is degraded along its own swath edge (a 1-px NaN line in gamma0, a
 wider zeroed fringe in coherence): a plain "last input wins" warp would paint
 those fringes over the neighbour's good data. All inputs are warped on the union
-grid first (nearest neighbour — no resampling thanks to the standard grid) and
-held in memory: N tiles × B bands × H × W float32.
+grid first (nearest neighbour — a plain copy when the tiles share a UTM zone
+thanks to the standard grid, one extra resampling of the other tiles when they
+do not, see *UTM zone* above) and held in memory: N tiles × B bands × H × W
+float32.
 
 ## Usage
 

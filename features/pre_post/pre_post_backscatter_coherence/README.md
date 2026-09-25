@@ -10,7 +10,7 @@ stayed over the twelve days of the pair. The graphs themselves live in
 
 - `pre_post_backscatter_coherence.py` — `main_preprocess(pre1, pre2, post1,
   post2, aoi, output_name, ...)` and the command line
-  `python rosarium.py slc`.
+  `python rosarium.py pre_post backscatter_coherence`.
 - `pre_post_backscatter_coherence.ipynb` — a driver of the module: fill the
   parameters cell, run. Not a mirror.
 
@@ -62,15 +62,15 @@ the coherence graphs (Back-Geocoding + ESD) dominate. The memory flags
 ## Usage
 
 ```
-python rosarium.py slc \
+python rosarium.py pre_post backscatter_coherence \
     --pre1  data/raw/vrac/S1A_IW_SLC__1SDV_20260804T..._A.SAFE \
     --pre2  data/raw/vrac/S1A_IW_SLC__1SDV_20260816T..._B.SAFE \
     --post1 data/raw/vrac/S1A_IW_SLC__1SDV_20260828T..._C.SAFE \
     --post2 data/raw/vrac/S1A_IW_SLC__1SDV_20260909T..._D.SAFE \
     --aoi data/utils/list_aoi.geojson --output zta1
 
-python rosarium.py slc ... --xmx 10G --cache 3G --threads 4   # 16 GB laptop
-python rosarium.py slc --help
+python rosarium.py pre_post backscatter_coherence ... --xmx 10G --cache 3G --threads 4   # 16 GB laptop
+python rosarium.py pre_post backscatter_coherence --help
 ```
 
 `--aoi` takes an inline WKT polygon (quoted) or a WKT / GeoJSON file in lon/lat
