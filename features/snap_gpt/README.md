@@ -46,13 +46,25 @@ Everything lands under `data/preprocessed/pre_post/`:
 | Path | Content |
 | --- | --- |
 | `temp/` | the intermediate `.dim` products of a pipeline run (`backscatter[_IWx].dim`, `coherence_pre[_IWx].dim`, `coherence_post[_IWx].dim`, `backscatter_grd.dim`) — overwritten by the next run |
-| `<name>/` | the final GeoTIFFs of a run: `<name>_pre.tif`, `<name>_post.tif`, plus the per-sub-swath tiles `<name>_IWx_pre.tif` when the AOI spans several |
-| `default/` | runs without a name (`coherence.dim` of a standalone coherence, `pre.tif` / `post.tif` of a gathering or GRD run without `--output`) |
+| `<name>/` | the final GeoTIFFs of a run: `<name>_pre.tif`, `<name>_post.tif`, plus the per-sub-swath tiles `<name>_IWx_pre.tif` when the AOI spans several; `<name>.log` for a run started from the webmap. A pipeline given no name writes to `vrac/` |
+| `default/` | single steps run without a name (`coherence.dim` of a standalone coherence, `pre.tif` / `post.tif` of a gathering or GRD step without `--output`) |
 
 The `--output` argument of the gathering / GRD steps and of the pipelines
 takes either a simple name (→ `<name>/`) or a path prefix
 (`data/preprocessed/pre_post/zta6/zta6_slc` → `zta6/zta6_slc_pre.tif`): the
 caller then controls the folder.
+
+## Following a run: the reporter
+
+Every `run_*` function and both pipelines take an optional `reporter`. Left
+to `None` — the command line — gpt writes straight to the console, as always.
+The webmap passes one (`frontend/jobs.py`) that receives the step list, marks
+each step as it starts, runs gpt itself to read its `....10%....20%` progress
+from the pipe, and can kill it on cancel. Any object with `plan`, `step`,
+`info`, `log` and `run` will do — the contract is in the module docstring.
+Step names come from `step_name()` (`backscatter IW2`, `coherence pre IW2`,
+`gathering IW2`, `mosaic`, `backscatter_grd`...), so that what a pipeline
+announces matches what the functions mark.
 
 ## GPT memory & performance
 

@@ -8,20 +8,28 @@ and `<name>_post.tif`, each holding gamma0_VH, gamma0_VV, coh_VH, coh_VV.
 
     python rosarium.py pre_post backscatter_coherence --pre1 ... --pre2 ... --post1 ... --post2 ... --aoi aoi.geojson --output zta1
 
-Usable as a library too: `main_preprocess(...)` returns the two paths.
+Usable as a library too: `main_preprocess(...)` returns the two paths. The
+webmap runs it with a ``reporter`` to follow its progress (see
+`features/snap_gpt/snap_gpt.py`).
 """
 
 import argparse
 import sys
 from pathlib import Path
 
+from shapely.geometry import mapping
+
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:  # so the module also runs from its own folder
     sys.path.insert(0, str(ROOT))
 
+from features.polygon_to_swaths_bursts.polygon_to_swaths_bursts import (  # noqa: E402
+    load_burst_footprints,
+)
 from features.snap_gpt.snap_gpt import (  # noqa: E402
     DEFAULT_GPT,
     DEFAULT_GPT_OPTIONS,
+    DEFAULT_RUN_NAME,
     PRE_POST_DIR,
     TEMP_DIR,
     GptOptions,
@@ -33,7 +41,37 @@ from features.snap_gpt.snap_gpt import (  # noqa: E402
     run_coherence,
     run_gathering,
     run_mosaic,
+    step_name,
 )
+
+
+def _report_bursts(reporter, product: str, swaths: list[dict]) -> None:
+    """Hand the reporter every burst footprint of ``product``, the used ones flagged.
+
+    What the webmap draws during a run: the whole track, and the bursts
+    TOPSAR-Split will keep.
+    """
+    kept = {s["subswath"]: range(s["first_burst"], s["last_burst"] + 1) for s in swaths}
+    footprints = load_burst_footprints(product)
+    reporter.info("bursts", {
+        "product": Path(product).name,
+        "swaths": swaths,
+        "footprints": {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "swath": row.swath,
+                        "burst": int(row.burst),
+                        "used": int(row.burst) in kept.get(row.swath, ()),
+                    },
+                    "geometry": mapping(row.geometry),
+                }
+                for row in footprints.itertuples(index=False)
+            ],
+        },
+    })
 
 
 def main_preprocess(
@@ -42,9 +80,10 @@ def main_preprocess(
     post1: str,
     post2: str,
     aoi: str,
-    output_name: str,
+    output_name: str = DEFAULT_RUN_NAME,
     gpt_path: str = DEFAULT_GPT,
     gpt_options: GptOptions = DEFAULT_GPT_OPTIONS,
+    reporter=None,
 ) -> dict:
     """
     Full SLC pre/post preprocessing pipeline.
@@ -77,6 +116,7 @@ def main_preprocess(
         aoi (str): Area of interest in lon/lat WGS84 — inline WKT, or a path
             to a WKT / GeoJSON file.
         output_name (str): Label for this run (e.g. ``"zta1"``), or a path.
+            Default ``"vrac"``.
 
             * Simple name (``"zta1"``) — a folder
               ``data/preprocessed/pre_post/zta1/`` is created and the products
@@ -88,6 +128,9 @@ def main_preprocess(
         gpt_options (GptOptions): Heap / cache / threads / tile size handed to
             every gpt call (see the top of ``snap_gpt.py`` for how to choose
             them).
+        reporter (optional): Progress receiver (see ``snap_gpt.py``): gets
+            the step list, the bursts kept (``info("bursts", ...)``) and every
+            gpt run.  None: everything goes to the console.
 
     Returns:
         dict: ``{"pre": <path>, "post": <path>}`` — absolute paths of the
@@ -100,16 +143,32 @@ def main_preprocess(
     # AOI on a burst seam also gets the neighbouring burst — a missing burst
     # would leave a silent nodata hole in the final GeoTIFFs, an extra one
     # costs seconds (see polygon_to_swaths_bursts in snap_gpt).
+    if reporter is not None:
+        reporter.plan([step_name("swaths & bursts")])
+        reporter.step(step_name("swaths & bursts"))
     swaths = polygon_to_swaths_bursts(pre2, aoi)
     if not swaths:
         raise ValueError(f"No subswath intersects the given AOI in {pre2!r}")
 
     multi = len(swaths) > 1
+    if reporter is not None:
+        _report_bursts(reporter, pre2, swaths)
+        iws = [s["subswath"] for s in swaths]
+        reporter.plan(
+            [step_name("backscatter", iw) for iw in iws]
+            + [step_name("coherence pre", iw) for iw in iws]
+            + [step_name("coherence post", iw) for iw in iws]
+            + [step_name("gathering", iw if multi else None) for iw in iws]
+            + ([step_name("mosaic")] if multi else [])
+        )
 
     # 2-4. Per-pair processing (each function loops over swaths internally)
-    run_backscatter(pre2, post1, aoi, gpt_path=gpt_path, gpt_options=gpt_options)
-    run_coherence(pre1, pre2, aoi, pair="pre", gpt_path=gpt_path, gpt_options=gpt_options)
-    run_coherence(post1, post2, aoi, pair="post", gpt_path=gpt_path, gpt_options=gpt_options)
+    run_backscatter(pre2, post1, aoi, gpt_path=gpt_path, gpt_options=gpt_options,
+                    reporter=reporter)
+    run_coherence(pre1, pre2, aoi, pair="pre", gpt_path=gpt_path, gpt_options=gpt_options,
+                  reporter=reporter)
+    run_coherence(post1, post2, aoi, pair="post", gpt_path=gpt_path, gpt_options=gpt_options,
+                  reporter=reporter)
 
     # 5. Gathering — all outputs go into the same output folder
     if _is_path(output_name):
@@ -136,7 +195,7 @@ def main_preprocess(
         gather_prefix = out_dir / f"{prefix}{suffix}"
         tifs = run_gathering(str(bs_path), str(coh_pre_path), str(coh_post_path),
                              output=str(gather_prefix), gpt_path=gpt_path,
-                             gpt_options=gpt_options)
+                             gpt_options=gpt_options, reporter=reporter)
 
         if len(tifs) >= 1:
             pre_tifs.append(tifs[0])
@@ -157,6 +216,8 @@ def main_preprocess(
     final_pre = out_dir / f"{prefix}_pre.tif"
     final_post = out_dir / f"{prefix}_post.tif"
 
+    if reporter is not None:
+        reporter.step(step_name("mosaic"))
     run_mosaic(pre_tifs, str(final_pre))
     run_mosaic(post_tifs, str(final_post))
 
@@ -187,7 +248,7 @@ def _build_parser(prog=None):
             "  pre2  - second acquisition  (master for backscatter)\n"
             "  post1 - third acquisition   (slave for backscatter)\n"
             "  post2 - latest acquisition\n\n"
-            "Outputs (written to data/preprocessed/pre_post/<NAME>/):\n"
+            f"Outputs (written to data/preprocessed/pre_post/<NAME>/, {DEFAULT_RUN_NAME} by default):\n"
             "  <NAME>_pre.tif  - pre-event product\n"
             "                    bands: gamma0_VH (pre2), gamma0_VV (pre2),\n"
             "                           coh_VH (pre1 x pre2), coh_VV (pre1 x pre2)\n"
@@ -221,14 +282,15 @@ def _build_parser(prog=None):
                             "WKT / GeoJSON file.  Used to locate the subswath/burst range and "
                             "to clip the outputs."
                         ))
-    parser.add_argument("--output", required=True, metavar="NAME_OR_PATH",
+    parser.add_argument("--output", default=DEFAULT_RUN_NAME, metavar="NAME_OR_PATH",
                         help=(
-                            "[required] Run label or output path.  "
+                            "[optional] Run label or output path.  "
                             "Simple name: creates data/preprocessed/pre_post/<NAME>/ and writes "
                             "<NAME>_pre.tif and <NAME>_post.tif inside it.  "
                             "Path (e.g. data/preprocessed/pre_post/zta6/zta6_slc): creates that "
                             "directory if needed and writes zta6_slc_pre.tif and "
-                            "zta6_slc_post.tif inside it."
+                            f"zta6_slc_post.tif inside it.  Default: {DEFAULT_RUN_NAME!r}, the "
+                            "same name as the default download folder."
                         ))
     add_gpt_options(parser)
     return parser

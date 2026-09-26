@@ -29,10 +29,17 @@ There is no sub-swath or burst detection: a GRD product is already debursted
 and covers the full swath, so `TOPSAR-Split` does not apply and no mosaic is
 needed. The AOI is only the clip, applied after terrain correction.
 
+The two products must still come from the **same relative orbit**: CreateStack
+and Cross-Correlation coregister them in radar geometry, before terrain
+correction, which only makes sense for one viewing geometry. Their framing may
+differ — GRD slices of one track shift by tens of kilometres from date to
+date — as long as each covers the whole AOI.
+
 The intermediate `backscatter_grd.dim` goes to
 `data/preprocessed/pre_post/temp/` and is overwritten by the next run; the
-final GeoTIFFs to `data/preprocessed/pre_post/<name>/`, or to the folder given
-as a path prefix (`--output data/preprocessed/pre_post/zta6/zta6_grd` →
+final GeoTIFFs to `data/preprocessed/pre_post/<name>/` (`vrac` when no name is
+given, like the default download folder), or to the folder given as a path
+prefix (`--output data/preprocessed/pre_post/zta6/zta6_grd` →
 `zta6/zta6_grd_pre.tif`). Name the run so that it says what it holds — this
 folder is shared with the SLC pipeline, whose products also carry the two
 coherence bands.
@@ -42,6 +49,17 @@ the CDSE STAC: same values and same annotation as the original GRD, readable by
 SNAP from version 10.
 
 ## Usage
+
+**Webmap** (`python rosarium.py webmap --open`, tab *Pre / post*, mode
+*Backscatter*): draw the AOI, give a pre and a post date range, search, pick
+one product on each side — once one is picked, only the other side's products
+of the same relative orbit stay on the map — then *Download + preprocess*.
+The page downloads the two products into `data/raw/<raw folder>/` (skipped if
+already there), runs the pipeline into `data/preprocessed/pre_post/<name>/`,
+and follows it: download statistics, the graph's percentage, the log (also
+written to `<name>/<name>.log`).
+
+**Command line**:
 
 ```
 python rosarium.py pre_post backscatter \

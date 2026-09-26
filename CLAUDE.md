@@ -70,8 +70,10 @@ the layout and how a feature is added.
   `.gitkeep` files are versioned. The defaults chain the features together:
   `aoi_to_slc` and the webmap write `data/utils/list.txt`, which `download`
   reads and copies into `data/raw/vrac/`; the pre/post pipelines write
-  `data/preprocessed/pre_post/<name>/`, with `temp/` for the `.dim`
-  intermediates and `default/` for unnamed runs. Keep the two ends in sync
+  `data/preprocessed/pre_post/<name>/` (`vrac` unnamed), with `temp/` for the
+  `.dim` intermediates and `default/` for single `gpt` steps run unnamed. A
+  webmap job writes `data/utils/<raw folder>.txt` + `_aoi.geojson`, and a
+  pre/post run its log as `<name>/<name>.log`. Keep the two ends in sync
   when changing one.
 
 ## Conventions
@@ -98,11 +100,26 @@ the layout and how a feature is added.
   not a product type.
 - Front-end: `frontend/api/<feature>.py` holds `ROUTES = {"GET": {}, "POST":
   {}}` of functions `(body, config) -> JSON-able`; `frontend/static/map.js`
-  owns the map, the single AOI, the status line, `api()` and the liveness
-  heartbeat (`/api/ping` while open, `/api/bye` on `pagehide`; the server
-  stops once no page is left, `--stay` disables it); a feature's script
-  registers in `clearHooks` / `initHooks` rather than redefining them. No
-  framework, no build step.
+  owns the map, the single AOI (shared by the tabs), the tabs (`data-tab`,
+  `setTab`), the status line, `api()` and the liveness heartbeat
+  (`/api/ping` while open, `/api/bye` on `pagehide`; the server stops once no
+  page is left, `--stay` disables it); a feature's script registers in
+  `clearHooks` / `initHooks` / `tabHooks` rather than redefining them, and
+  shows its layers only in its tab. `map.js` replaces Leaflet.draw 1.0.4's
+  `L.GeometryUtil.readableArea` (it assigns an undeclared `type` and throws
+  once an area is shown) with a km² formatter; the ruler is Leaflet.draw's
+  polyline handler, not in the draw toolbar. Tabs: *Pre / post* (`pre_post.js`, the
+  default) and *Browse & download* (`aoi_to_slc.js`). No framework, no build
+  step. No node here: a headless Edge `--dump-dom` of a test server on a
+  spare port is how the page's scripts get checked.
+- Long work (download, SNAP) is a **job**: `frontend/jobs.py` runs one at a
+  time in a thread, `job.js` polls `/api/job/status` and draws the panel
+  (steps, rclone stats, bursts, percentage, Cancel). The feature functions
+  take an optional `reporter` (`plan/step/info/log/run`, contract in the
+  `snap_gpt.py` docstring; `None` = console, CLI unchanged); the `Job` is
+  that reporter and starts gpt/rclone itself so it can read their output and
+  kill them — own process group on POSIX, plain kill on Windows (gpt.exe
+  hosts the JVM in-process, checked). The server stopping kills the job.
 
 ## Maintaining this file
 
@@ -119,8 +136,10 @@ longer helps.
   SLC/GRD scenes covering it, tick some, write their S3 paths
   (`/eodata/Sentinel-1/SAR/.../<product>.SAFE`, the downloader's convention;
   `s3://` and bare-key forms optional) to a text file, one per line, plus the
-  AOI as `<name>_aoi.geojson`. **No download here**: the user's downloader, in
-  another repo, takes that file and an output folder. Search = CDSE STAC hit
+  AOI as `<name>_aoi.geojson`. No download in the module itself: the webmap
+  chains it with `download_products` and the pre/post runs (its search
+  results also carry `covers_aoi` and `centroid` for the pre/post selection,
+  added in `frontend/api/aoi_to_slc.py`). Search = CDSE STAC hit
   directly with `requests`, anonymous, no credentials. Not asf_search: no
   `eodata` paths there. **GRD = the COG variant**, the only one in the CDSE
   STAC — a distinct product from the original GRD (other checksum suffix,
@@ -129,8 +148,10 @@ longer helps.
   OData lists both with `S3Path`: rewrite `search_products` only.
 - `features/download_products/` — the path file, downloaded: one parallel
   `rclone copy` from the CDSE `eodata` bucket, then every `.SAFE` flattened
-  into `data/raw/<folder>/` (`vrac` by default). CLI only
-  (`rosarium.py download`), standard library on the Python side. The user
+  into `data/raw/<folder>/` (`vrac` by default); products whose `.SAFE` is
+  already there are skipped (rclone alone would re-copy them: the flattening
+  empties their bucket path). `rosarium.py download`, or the webmap; standard
+  library on the Python side. The user
   configures the `cdse:` remote themselves (`rclone config`); that config is
   per user (`%APPDATA%\rclone\`, `~/.config/rclone/`), not per env, so it
   outlives reinstalling the binary.
@@ -155,7 +176,15 @@ longer helps.
   `pre_post_backscatter/` (2 GRD -> gamma0 only, `main_preprocess_grd`).
   Each has a notebook driving its module. On the command line they form the
   group `rosarium.py pre_post <backscatter_coherence|backscatter>`, the
-  sub-command named after the folder.
+  sub-command named after the folder; `--output` defaults to `vrac`. In the
+  webmap, the *Pre / post* tab (`frontend/api/pre_post.py`) downloads then
+  runs them as one job. Pairing rules the page enforces: GRD = same relative
+  orbit (coregistration in radar geometry); SLC = same relative orbit AND
+  same framing (centroids within 5 km), because the burst range is computed
+  on one product and applied as is to its partner. Measured: S1A and S1C are
+  framed ~15–20 km apart on one track, so they never pair. Computing the
+  bursts per product might lift that, if Back-Geocoding pairs bursts by
+  time — unverified; not done, the user's call.
 - `features/polygon_to_swaths_bursts/` — Sentinel-1 SLC: which sub-swaths and
   bursts a polygon intersects, read from the product annotation XML without
   touching the image data. Module + CLI (`rosarium.py bursts`), a mirrored

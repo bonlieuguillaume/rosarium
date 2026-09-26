@@ -8,6 +8,8 @@ speckle filter, terrain correction, clip — and come out as two GeoTIFFs,
     python rosarium.py pre_post backscatter --pre ... --post ... --aoi aoi.geojson --output zta1
 
 Usable as a library too: `main_preprocess_grd(...)` returns the two paths.
+The webmap runs it with a ``reporter`` to follow its progress (see
+`features/snap_gpt/snap_gpt.py`).
 """
 
 import argparse
@@ -21,12 +23,14 @@ if str(ROOT) not in sys.path:  # so the module also runs from its own folder
 from features.snap_gpt.snap_gpt import (  # noqa: E402
     DEFAULT_GPT,
     DEFAULT_GPT_OPTIONS,
+    DEFAULT_RUN_NAME,
     PRE_POST_DIR,
     GptOptions,
     _is_path,
     add_gpt_options,
     gpt_options_from_args,
     run_backscatter_grd,
+    step_name,
 )
 
 
@@ -34,9 +38,10 @@ def main_preprocess_grd(
     pre: str,
     post: str,
     aoi: str,
-    output_name: str,
+    output_name: str = DEFAULT_RUN_NAME,
     gpt_path: str = DEFAULT_GPT,
     gpt_options: GptOptions = DEFAULT_GPT_OPTIONS,
+    reporter=None,
 ) -> dict:
     """
     GRD-only pre/post preprocessing pipeline.
@@ -65,6 +70,7 @@ def main_preprocess_grd(
         aoi (str): Area of interest in lon/lat WGS84 — inline WKT, or a path
             to a WKT / GeoJSON file.
         output_name (str): Label for this run (e.g. ``"zta1"``), or a path.
+            Default ``"vrac"``.
 
             * Simple name (``"zta1"``) — a folder
               ``data/preprocessed/pre_post/zta1/`` is created and the products
@@ -75,6 +81,9 @@ def main_preprocess_grd(
         gpt_path (str): Path to the SNAP GPT executable.
         gpt_options (GptOptions): Heap / cache / threads / tile size handed to
             gpt (see the top of ``snap_gpt.py`` for how to choose them).
+        reporter (optional): Progress receiver (see ``snap_gpt.py``): gets
+            the step list and the gpt run.  None: everything goes to the
+            console.
 
     Returns:
         dict: ``{"pre": <path>, "post": <path>}`` — absolute paths of the
@@ -94,9 +103,13 @@ def main_preprocess_grd(
         prefix = output_name
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    if reporter is not None:
+        reporter.plan([step_name("backscatter_grd"), step_name("split pre/post")])
+
     gather_prefix = out_dir / prefix
     tifs = run_backscatter_grd(pre, post, aoi, output=str(gather_prefix),
-                               gpt_path=gpt_path, gpt_options=gpt_options)
+                               gpt_path=gpt_path, gpt_options=gpt_options,
+                               reporter=reporter)
 
     if len(tifs) < 2:
         raise RuntimeError(
@@ -130,7 +143,7 @@ def _build_parser(prog=None):
             "Image roles:\n"
             "  pre  - pre-event acquisition (master for coregistration)\n"
             "  post - post-event acquisition (slave)\n\n"
-            "Outputs (written to data/preprocessed/pre_post/<NAME>/):\n"
+            f"Outputs (written to data/preprocessed/pre_post/<NAME>/, {DEFAULT_RUN_NAME} by default):\n"
             "  <NAME>_pre.tif  - pre-event product\n"
             "                    bands: gamma0_VH (pre), gamma0_VV (pre)\n"
             "  <NAME>_post.tif - post-event product\n"
@@ -160,14 +173,15 @@ def _build_parser(prog=None):
                             '(must be quoted: --aoi "POLYGON ((-54.1 4.1, ...))") or a path to a '
                             "WKT / GeoJSON file.  Used to clip the outputs."
                         ))
-    parser.add_argument("--output", required=True, metavar="NAME_OR_PATH",
+    parser.add_argument("--output", default=DEFAULT_RUN_NAME, metavar="NAME_OR_PATH",
                         help=(
-                            "[required] Run label or output path.  "
+                            "[optional] Run label or output path.  "
                             "Simple name: creates data/preprocessed/pre_post/<NAME>/ and writes "
                             "<NAME>_pre.tif and <NAME>_post.tif inside it.  "
                             "Path (e.g. data/preprocessed/pre_post/zta6/zta6_grd): creates that "
                             "directory if needed and writes zta6_grd_pre.tif and "
-                            "zta6_grd_post.tif inside it."
+                            f"zta6_grd_post.tif inside it.  Default: {DEFAULT_RUN_NAME!r}, the "
+                            "same name as the default download folder."
                         ))
     add_gpt_options(parser)
     return parser

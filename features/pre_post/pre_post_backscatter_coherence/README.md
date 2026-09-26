@@ -28,6 +28,16 @@ geometry) so that they coregister; consecutive passes, 12 days apart with one
 satellite, are the usual choice. `pre2` and `post1` bracket the event as
 tightly as possible.
 
+They must also share the same **framing** — the same bursts at the same
+indices. The burst range is computed on one product of each graph run and
+applied as is to its partner (same `firstBurstIndex` / `lastBurstIndex` in the
+two `TOPSAR-Split` nodes): a product shifted by one burst puts other ground
+under those numbers, and Back-Geocoding fails or yields an empty product. On
+one track each satellite keeps a stable framing, but two satellites may not
+share it — S1A and S1C products of the same relative orbit were measured
+15–20 km apart, about a burst. The webmap keeps together only products whose
+footprints are centred within 5 km.
+
 ## Steps
 
 1. **Sub-swaths and bursts** — which `IWx` and burst range the AOI needs, read
@@ -48,7 +58,8 @@ tightly as possible.
 
 Intermediate `.dim` products go to `data/preprocessed/pre_post/temp/` and are
 overwritten by the next run; the final GeoTIFFs to
-`data/preprocessed/pre_post/<name>/`, or to the folder given as a path prefix
+`data/preprocessed/pre_post/<name>/` (`vrac` when no name is given, like the
+default download folder), or to the folder given as a path prefix
 (`--output data/preprocessed/pre_post/zta6/zta6_slc` →
 `zta6/zta6_slc_pre.tif`). Name the run so that it says what it holds — this
 folder is shared with the GRD pipeline, whose products only have the two
@@ -60,6 +71,18 @@ the coherence graphs (Back-Geocoding + ESD) dominate. The memory flags
 `snap_gpt` README.
 
 ## Usage
+
+**Webmap** (`python rosarium.py webmap --open`, tab *Pre / post*, mode
+*Backscatter + coherence*): draw the AOI, give a pre and a post date range,
+search, pick two products on each side — once one is picked, only those on
+the same track and framing stay on the map — then *Download + preprocess*.
+The page downloads the four products into `data/raw/<raw folder>/` (those
+already there are skipped), runs the pipeline into
+`data/preprocessed/pre_post/<name>/` and follows it step by step: download
+statistics, the sub-swaths and bursts kept (drawn on the map), each graph with
+its percentage. The whole log is written to `<name>/<name>.log`.
+
+**Command line**:
 
 ```
 python rosarium.py pre_post backscatter_coherence \

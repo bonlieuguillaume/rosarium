@@ -14,58 +14,130 @@
 <body>
 
 <header>
-  <div class="logo">rosarium<span> // AOI → S1 · CDSE catalogue</span></div>
+  <div class="logo">rosarium<span> // Sentinel-1 · CDSE → pre/post GeoTIFFs</span></div>
   <div id="status">Draw an AOI on the map, or paste one in the sidebar.</div>
 </header>
 
 <div class="main">
   <div class="sidebar">
-    <div class="sidebar-top">
+    <!-- TABS (map.js) -->
+    <div class="tabs">
+      <button class="tab active" data-tab="pre_post" onclick="setTab('pre_post')">Pre / post</button>
+      <button class="tab" data-tab="browse" onclick="setTab('browse')">Browse &amp; download</button>
+    </div>
 
-      <!-- AOI: shared by every feature (map.js) -->
+    <div class="sidebar-top">
+      <div id="toolWarn" class="warn" hidden></div>
+
+      <!-- AOI: shared by every tab (map.js) -->
       <div class="sidebar-section">
         <div class="section-title">Area of interest</div>
         <div class="hint">Draw with the toolbar on the map (polygon or rectangle), or paste WKT / GeoJSON in lon/lat.</div>
         <textarea id="aoiText" rows="3" placeholder="POLYGON ((lon lat, ...)) — or GeoJSON"></textarea>
+        <div class="aoi-area" id="aoiArea"></div>
         <div class="btn-row">
           <button class="btn primary" onclick="useAoiText()">Use this AOI</button>
           <button class="btn" onclick="clearAll()">Clear</button>
         </div>
       </div>
 
-      <!-- aoi_to_slc: SEARCH (aoi_to_slc.js) -->
-      <div class="sidebar-section">
-        <div class="section-title">Search</div>
-        <div class="grid2">
-          <div class="field"><label>From</label><input type="date" id="start"></div>
-          <div class="field"><label>To</label><input type="date" id="end"></div>
+      <!-- ═══ PRE / POST (pre_post.js) ═══ -->
+      <div class="tab-panel" data-tab="pre_post">
+        <div class="sidebar-section">
+          <div class="section-title">Pipeline</div>
+          <div class="seg">
+            <button class="btn" data-mode="GRD" onclick="ppSetMode('GRD')">Backscatter<br><small>2 GRD</small></button>
+            <button class="btn" data-mode="SLC" onclick="ppSetMode('SLC')">Backscatter + coherence<br><small>4 SLC</small></button>
+          </div>
+          <div class="hint" id="ppModeHint" style="margin:8px 0 0"></div>
         </div>
-        <div class="grid2">
-          <div class="field"><label>Product</label>
-            <select id="product"><option value="SLC">SLC</option><option value="GRD">GRD (COG)</option></select></div>
-          <div class="field"><label>Mode</label>
-            <select id="mode"><option>IW</option><option>EW</option><option>SM</option><option value="">any</option></select></div>
+
+        <div class="sidebar-section">
+          <div class="section-title">Dates</div>
+          <div class="grid2">
+            <div class="field"><label><span class="dot pre"></span>Pre from</label><input type="date" id="ppPreStart"></div>
+            <div class="field"><label>Pre to</label><input type="date" id="ppPreEnd"></div>
+          </div>
+          <div class="grid2">
+            <div class="field"><label><span class="dot post"></span>Post from</label><input type="date" id="ppPostStart"></div>
+            <div class="field"><label>Post to</label><input type="date" id="ppPostEnd"></div>
+          </div>
+          <div class="grid3">
+            <div class="field"><label>Mode</label>
+              <select id="ppAcq"><option>IW</option><option>EW</option><option>SM</option><option value="">any</option></select></div>
+            <div class="field"><label>Orbit</label>
+              <select id="ppOrbit"><option value="">any</option><option>ascending</option><option>descending</option></select></div>
+            <div class="field"><label>Platform</label>
+              <select id="ppPlatform"><option value="">any</option><option>S1A</option><option>S1B</option><option>S1C</option><option>S1D</option></select></div>
+          </div>
+          <div class="btn-row"><button class="btn primary" id="ppSearchBtn" onclick="ppSearch()">Search pre + post</button></div>
         </div>
-        <div class="grid2">
-          <div class="field"><label>Orbit</label>
-            <select id="orbit"><option value="">any</option><option>ascending</option><option>descending</option></select></div>
-          <div class="field"><label>Platform</label>
-            <select id="platform"><option value="">any</option><option>S1A</option><option>S1B</option><option>S1C</option><option>S1D</option></select></div>
+
+        <div class="sidebar-section">
+          <div class="section-title">Selection <span id="ppSelSize"></span></div>
+          <div id="ppSlots" class="slots"></div>
+          <div id="ppWarn" class="warn" hidden></div>
+          <div class="btn-row" style="align-items:center">
+            <label class="check"><input type="checkbox" id="ppShowPre" checked onchange="ppRefresh()"> <span class="dot pre"></span>show pre</label>
+            <label class="check"><input type="checkbox" id="ppShowPost" checked onchange="ppRefresh()"> <span class="dot post"></span>show post</label>
+          </div>
         </div>
-        <div class="btn-row"><button class="btn primary" id="searchBtn" onclick="search()">Search</button></div>
+
+        <div class="sidebar-section">
+          <div class="section-title">Output</div>
+          <div class="grid2">
+            <div class="field"><label>Raw folder</label><input type="text" id="ppRaw" placeholder="vrac" oninput="ppSyncName()"></div>
+            <div class="field"><label>Preprocessed name</label><input type="text" id="ppName" placeholder="vrac"></div>
+          </div>
+          <div class="hint" id="ppWhere"></div>
+          <div class="btn-row"><button class="btn go needs-idle" id="ppRunBtn" onclick="ppRun()" disabled>Download + preprocess</button></div>
+          <div class="btn-row small">
+            <button class="btn needs-idle" onclick="ppDownloadOnly()">Download only</button>
+            <button class="btn" onclick="ppWritePaths()">Write S3 paths</button>
+          </div>
+        </div>
       </div>
 
-      <!-- aoi_to_slc: PATH FILE (aoi_to_slc.js) -->
-      <div class="sidebar-section">
-        <div class="section-title">Path file</div>
-        <div class="field"><label>File (one product per line)</label><input type="text" id="pathFile"></div>
-        <div class="btn-row" style="align-items:center">
-          <label class="check" title="Also write the AOI as <path file>_aoi.geojson, next to the list">
-            <input type="checkbox" id="withAoi" checked> AOI alongside
-          </label>
-          <button class="btn go" id="writeBtn" onclick="writePaths()">Write S3 paths</button>
+      <!-- ═══ BROWSE & DOWNLOAD (aoi_to_slc.js) ═══ -->
+      <div class="tab-panel" data-tab="browse" hidden>
+        <div class="sidebar-section">
+          <div class="section-title">Search</div>
+          <div class="grid2">
+            <div class="field"><label>From</label><input type="date" id="start"></div>
+            <div class="field"><label>To</label><input type="date" id="end"></div>
+          </div>
+          <div class="grid2">
+            <div class="field"><label>Product</label>
+              <select id="product"><option value="SLC">SLC</option><option value="GRD">GRD (COG)</option></select></div>
+            <div class="field"><label>Mode</label>
+              <select id="mode"><option>IW</option><option>EW</option><option>SM</option><option value="">any</option></select></div>
+          </div>
+          <div class="grid2">
+            <div class="field"><label>Orbit</label>
+              <select id="orbit"><option value="">any</option><option>ascending</option><option>descending</option></select></div>
+            <div class="field"><label>Platform</label>
+              <select id="platform"><option value="">any</option><option>S1A</option><option>S1B</option><option>S1C</option><option>S1D</option></select></div>
+          </div>
+          <div class="btn-row"><button class="btn primary" id="searchBtn" onclick="search()">Search</button></div>
         </div>
-        <textarea id="preview" rows="4" readonly placeholder="the lines that will be written" style="margin-top:8px"></textarea>
+
+        <div class="sidebar-section">
+          <div class="section-title">Download</div>
+          <div class="field"><label>Folder (data/raw/…)</label><input type="text" id="dlFolder" placeholder="vrac"></div>
+          <div class="btn-row"><button class="btn go needs-idle" onclick="downloadSelected()">Download</button></div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="section-title">S3 paths only</div>
+          <div class="field"><label>Path file (one product per line)</label><input type="text" id="pathFile"></div>
+          <div class="btn-row small" style="align-items:center">
+            <label class="check" title="Also write the AOI as <path file>_aoi.geojson, next to the list">
+              <input type="checkbox" id="withAoi" checked> AOI alongside
+            </label>
+            <button class="btn" id="writeBtn" onclick="writePaths()">Write S3 paths</button>
+          </div>
+          <textarea id="preview" rows="3" readonly placeholder="the lines that will be written" style="margin-top:8px"></textarea>
+        </div>
       </div>
 
       <!-- BASEMAP (map.js) -->
@@ -77,11 +149,19 @@
           <button class="btn" onclick="setBasemap('osm', this)">OSM</button>
         </div>
       </div>
-
     </div>
 
-    <!-- aoi_to_slc: RESULTS (aoi_to_slc.js) -->
-    <div class="list-area">
+    <!-- pre_post: RESULTS (pre_post.js) -->
+    <div class="list-area tab-panel" data-tab="pre_post">
+      <div class="list-header">
+        <span>Products <span id="ppCount" style="font-weight:400;color:var(--text-dim)"></span></span>
+        <button class="btn" onclick="ppClearSelection()">Unselect all</button>
+      </div>
+      <div class="list-wrap" id="ppList"><div class="empty">No search yet</div></div>
+    </div>
+
+    <!-- browse: RESULTS (aoi_to_slc.js) -->
+    <div class="list-area tab-panel" data-tab="browse" hidden>
       <div class="list-header">
         <span>Products <span id="listCount" style="font-weight:400;color:var(--text-dim)"></span></span>
         <span>
@@ -93,7 +173,11 @@
     </div>
   </div>
 
-  <div id="map"></div>
+  <div class="map-wrap">
+    <div id="map"></div>
+    <!-- JOB PANEL (job.js): the running download / pre-post run, whatever the tab -->
+    <div id="jobPanel" hidden></div>
+  </div>
 </div>
 
 <div class="statusbar">
@@ -108,8 +192,11 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-<!-- map.js first: the feature scripts build on what it declares -->
+<!-- map.js first: the other scripts build on what it declares; job.js next,
+     used by both tabs -->
 <script src="map.js"></script>
+<script src="job.js"></script>
+<script src="pre_post.js"></script>
 <script src="aoi_to_slc.js"></script>
 </body>
 </html>

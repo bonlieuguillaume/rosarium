@@ -5,7 +5,9 @@ to draw or paste the AOI, list the SLC / GRD scenes covering it, tick some and
 write their S3 paths to a text file, one per line. A stripped-down Copernicus
 Browser that stops where the download starts: the path file is what a
 downloader takes, with an output folder, to fetch the products. Nothing is
-downloaded here and no credentials are needed.
+downloaded by this module and no credentials are needed; the webmap chains it
+with `download_products` (*Browse & download* tab) and with the pre/post
+pipelines (*Pre / post* tab), whose search goes through `search_products` too.
 
 - `aoi_to_slc.py` — the logic: the search (`search_products`), the path file
   (`write_path_file`, `s3_paths`, `format_s3_path`), the AOI helpers
@@ -14,9 +16,10 @@ downloaded here and no credentials are needed.
 - `aoi_to_slc.ipynb` — the interface inside a notebook, plus the calls from
   plain Python. A thin driver of the module, *not* a mirror of it.
 - **The webmap in the browser** lives in `frontend/` at the repository root:
-  `python rosarium.py webmap --open`. The server answers three JSON routes
-  (`frontend/api/aoi_to_slc.py`) with this module's functions; the page does
-  the map, the drawing and the list (`frontend/static/aoi_to_slc.js`).
+  `python rosarium.py webmap --open`. The server answers JSON routes
+  (`frontend/api/aoi_to_slc.py`: parse the AOI, search, write, download) with
+  this module's functions; the page does the map, the drawing and the list
+  (`frontend/static/aoi_to_slc.js`, the *Browse & download* tab).
 
 Path files land in `data/utils/` by default (`list.txt`, plus the AOI as
 `list_aoi.geojson`); the folder's content is not versioned. `list.txt` is
@@ -79,15 +82,21 @@ python rosarium.py webmap --open
 python rosarium.py webmap --port 9000 --path-file C:/data/list.txt --style mount --days 60
 ```
 
-The page opens on <http://localhost:8050>. Draw a polygon or a rectangle with
+The page opens on <http://localhost:8050>, on the *Pre / post* tab; this
+feature is the *Browse & download* tab. Draw a polygon or a rectangle with
 the toolbar on the map, or paste WKT / GeoJSON in the sidebar and *Use this
-AOI*. Set the dates and criteria, *Search*: the footprints appear on the map and
-in the list. Click a product in the list or on the map to tick it (green); *All*
-/ *None* for the whole list. The path file box previews the lines; *Write S3
-paths* writes them — overwriting the file: one file is one selection — with the
-AOI next to it as `<name>_aoi.geojson` unless *AOI alongside* is unticked. The
-header line reports every step, errors in red. Closing the page stops the
-server (Ctrl+C in the terminal too; `--stay` to keep it running).
+AOI* (the AOI is shared by the two tabs). Set the dates and criteria,
+*Search*: the footprints appear on the map and in the list. Click a product in
+the list or on the map to tick it (green); *All* / *None* for the whole list.
+*Download* fetches the ticked products into `data/raw/<folder>/` (`vrac` when
+the field is empty), writing `data/utils/<folder>.txt` and
+`<folder>_aoi.geojson` on the way; a panel on the map follows the download.
+*S3 paths only* previews the lines; *Write S3 paths* writes them to the path
+file — overwriting it: one file is one selection — with the AOI next to it as
+`<name>_aoi.geojson` unless *AOI alongside* is unticked. The header line
+reports every step, errors in red. Closing the page stops the server, and a
+running download with it (Ctrl+C in the terminal too; `--stay` to keep it
+running).
 
 `--path-file`, `--style`, `--center LAT LON`, `--zoom`, `--days` and
 `--max-items` set the page's defaults; the path file stays editable in the page,

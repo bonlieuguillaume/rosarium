@@ -4,7 +4,8 @@ Given a path file — the one `aoi_to_slc` writes, `data/utils/list.txt` by
 default, one `/eodata/...` product path per line — this builds an rclone
 filter file next to it, runs a single parallelised `rclone copy` covering
 every product at once, then flattens the resulting date/mission tree so every
-.SAFE folder ends up directly under `data/raw/<folder>/`.
+.SAFE folder ends up directly under `data/raw/<folder>/`. Products whose
+.SAFE is already there are left out of the copy.
 
     python rosarium.py download                     # data/utils/list.txt -> data/raw/vrac/
     python rosarium.py download --list my.txt --folder zta1
@@ -12,6 +13,10 @@ every product at once, then flattens the resulting date/mission tree so every
 rclone comes from conda-forge with the env, but its remote for the CDSE S3
 endpoint is configured once by the user (`rclone config`, named `cdse` by
 default — see the README).
+
+`parallel_download` takes an optional ``reporter``, as the SNAP pipelines do
+(see `features/snap_gpt/snap_gpt.py`): the webmap uses it to show rclone's
+transfer statistics instead of the console progress.
 """
 
 import argparse
@@ -49,6 +54,36 @@ def _raw_path_to_filter_line(raw: str) -> str:
     return f"+ {_normalize_remote_path(raw)}/**"
 
 
+def product_name(raw: str):
+    """The ``<product>.SAFE`` folder name a path-file line points to, or None.
+
+    Works on the three path forms and on lines already in filter syntax
+    (``+ /Sentinel-1/.../X.SAFE/**``).
+    """
+    for part in raw.strip().lstrip("+- ").split("/"):
+        if part.upper().endswith(".SAFE"):
+            return part
+    return None
+
+
+def missing_lines(raw_lines: list, dest_dir: Path) -> list:
+    """The path-file lines whose product is not yet in ``dest_dir``.
+
+    A .SAFE lands at the root of the folder only once the whole copy has
+    succeeded (``flatten_safe_dirs`` runs after rclone), so its presence
+    there means complete. Without this, a second run would copy it again:
+    rclone looks for it at its bucket path (``Sentinel-1/SAR/...``), which
+    the flattening emptied.
+    """
+    dest_dir = Path(dest_dir)
+    return [
+        raw for raw in raw_lines
+        if raw.strip() and not (
+            (name := product_name(raw)) and (dest_dir / name).is_dir()
+        )
+    ]
+
+
 def build_filter_lines(raw_lines: list) -> list:
     """
     Convert path-file lines into rclone filter syntax.
@@ -80,10 +115,15 @@ def build_filter_lines(raw_lines: list) -> list:
     return lines
 
 
-def build_filter_file(list_path: Path) -> Path:
-    """Read list_path and write the corresponding filter.txt next to it."""
+def build_filter_file(list_path: Path, raw_lines: list = None) -> Path:
+    """Write the filter.txt of list_path next to it.
+
+    ``raw_lines`` replaces the content of list_path when given (the lines
+    left once the products already downloaded are dropped).
+    """
     list_path = Path(list_path)
-    raw_lines = list_path.read_text(encoding="utf-8").splitlines()
+    if raw_lines is None:
+        raw_lines = list_path.read_text(encoding="utf-8").splitlines()
 
     filter_lines = build_filter_lines(raw_lines)
 
@@ -99,8 +139,14 @@ def run_rclone_copy(
     transfers: int = DEFAULT_TRANSFERS,
     multi_thread_streams: int = DEFAULT_MULTI_THREAD_STREAMS,
     remote: str = DEFAULT_REMOTE,
+    reporter=None,
 ) -> None:
-    """Run a single parallelized rclone copy of every product matched by filter_path into dest_dir."""
+    """Run a single parallelized rclone copy of every product matched by filter_path into dest_dir.
+
+    Without a reporter rclone draws its live progress in the console
+    (``--progress``). With one, rclone logs JSON instead, one statistics
+    record per second, which the reporter reads (``kind="rclone"``).
+    """
     rclone = shutil.which("rclone")
     if rclone is None:
         raise FileNotFoundError(
@@ -114,9 +160,14 @@ def run_rclone_copy(
         "--filter-from", str(filter_path),
         "--transfers", str(transfers),
         "--multi-thread-streams", str(multi_thread_streams),
-        "--progress",
     ]
-    subprocess.run(cmd, cwd=str(dest_dir), check=True)
+    if reporter is None:
+        subprocess.run(cmd + ["--progress"], cwd=str(dest_dir), check=True)
+        return
+    cmd += ["--use-json-log", "--stats", "1s", "--stats-log-level", "NOTICE"]
+    code = reporter.run(cmd, cwd=str(dest_dir), kind="rclone")
+    if code != 0:
+        raise RuntimeError(f"rclone copy failed (exit code {code})")
 
 
 def remove_empty_dirs(root: Path) -> None:
@@ -157,9 +208,13 @@ def parallel_download(
     transfers: int = DEFAULT_TRANSFERS,
     multi_thread_streams: int = DEFAULT_MULTI_THREAD_STREAMS,
     remote: str = DEFAULT_REMOTE,
+    reporter=None,
 ) -> Path:
     """
     Download every Sentinel-1 product listed in list_path into data/raw/<folder>/.
+
+    Products whose .SAFE is already at the root of that folder are skipped
+    (see `missing_lines`); when none is left, rclone is not run at all.
 
     Args:
         list_path: Path to the list of remote product paths (default: data/utils/list.txt).
@@ -167,23 +222,37 @@ def parallel_download(
         transfers: rclone --transfers value.
         multi_thread_streams: rclone --multi-thread-streams value.
         remote: rclone remote:bucket to copy from.
+        reporter: Optional progress receiver (see features/snap_gpt/snap_gpt.py):
+            one step, ``download``, and rclone run through it.
 
     Returns:
         Path to data/raw/<folder>, containing the flattened .SAFE products.
     """
+    say = reporter.log if reporter is not None else print
+    if reporter is not None:
+        reporter.step("download")
+
     list_path = Path(list_path) if list_path else DEFAULT_LIST
     if not list_path.is_file():
         raise FileNotFoundError(f"path file not found: {list_path}")
     dest_dir = RAW_DIR / folder
     dest_dir.mkdir(parents=True, exist_ok=True)
 
-    filter_path = build_filter_file(list_path)
-    print(f"Filter file written to {filter_path}")
+    raw_lines = [line for line in list_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    todo = missing_lines(raw_lines, dest_dir)
+    if len(todo) < len(raw_lines):
+        say(f"{len(raw_lines) - len(todo)} product(s) already in {dest_dir}, skipped")
+    if not todo:
+        say("Nothing left to download")
+        return dest_dir
 
-    run_rclone_copy(filter_path, dest_dir, transfers, multi_thread_streams, remote)
+    filter_path = build_filter_file(list_path, todo)
+    say(f"Filter file written to {filter_path}")
+
+    run_rclone_copy(filter_path, dest_dir, transfers, multi_thread_streams, remote, reporter)
 
     moved = flatten_safe_dirs(dest_dir)
-    print(f"{len(moved)} .SAFE product(s) available in {dest_dir}")
+    say(f"{len(moved)} .SAFE product(s) available in {dest_dir}")
 
     return dest_dir
 
@@ -207,7 +276,7 @@ def _build_parser(prog=None):
             "product path per line), builds an rclone filter file next to it, runs a\n"
             "single parallelized `rclone copy` for every product at once, then flattens\n"
             "the resulting mission/date tree so every .SAFE ends up directly under\n"
-            "data/raw/<folder>/.\n\n"
+            "data/raw/<folder>/.  Products already there are skipped.\n\n"
             "rclone comes with the rosarium env; what it needs is a remote configured\n"
             "once for the CDSE S3 endpoint, with your own keys from\n"
             "https://eodata-s3keysmanager.dataspace.copernicus.eu/ (`rclone config`;\n"

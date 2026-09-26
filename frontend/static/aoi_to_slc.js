@@ -1,12 +1,15 @@
-// rosarium webmap — aoi_to_slc panel: search the CDSE catalogue, tick
-// products, write their S3 paths. Uses the map, AOI, status and api() of map.js.
+// rosarium webmap — "Browse & download" tab (aoi_to_slc): search the CDSE
+// catalogue, tick products, download them into data/raw/<folder>/ (a job,
+// followed by job.js), or only write their S3 paths. Uses the map, AOI,
+// status and api() of map.js.
 
 // ─── STATE ───────────────────────────────────────────────────────
 let results = [];           // features returned by /api/search
 let selected = new Set();   // product names
 const layersByName = {};    // product name -> Leaflet layer of its footprint
 
-const footLayer = L.geoJSON(EMPTY, { style: FOOT_STYLE, onEachFeature: onFootprint }).addTo(map);
+// Added to the map by the tab hook below, when this tab is shown
+const footLayer = L.geoJSON(EMPTY, { style: FOOT_STYLE, onEachFeature: onFootprint });
 
 // ─── SEARCH ──────────────────────────────────────────────────────
 function search() {
@@ -52,7 +55,7 @@ function restyle(name) {
 }
 
 // ─── LIST ────────────────────────────────────────────────────────
-function rowOf(name) { return document.querySelector(`.item[data-name="${CSS.escape(name)}"]`); }
+function rowOf(name) { return $('list').querySelector(`.item[data-name="${CSS.escape(name)}"]`); }
 function renderList() {
   const list = $('list');
   list.innerHTML = '';
@@ -91,12 +94,27 @@ function selectAll(on) {
 }
 function selectedRows() { return results.filter(f => selected.has(f.properties.name)); }
 function syncSelection() {
-  document.querySelectorAll('.item').forEach(el => el.classList.toggle('sel', selected.has(el.dataset.name)));
+  $('list').querySelectorAll('.item').forEach(el => el.classList.toggle('sel', selected.has(el.dataset.name)));
   Object.keys(layersByName).forEach(restyle);
   const rows = selectedRows();
   $('preview').value = rows.map(f => f.properties.path).join('\n');
   const gb = rows.reduce((a, f) => a + (f.properties.size_gb || 0), 0);
-  $('selInfo').textContent = rows.length ? `${rows.length} selected · ${gb.toFixed(1)} GB` : '0 selected';
+  if (activeTab === 'browse')
+    $('selInfo').textContent = rows.length ? `${rows.length} selected · ${gb.toFixed(1)} GB` : '0 selected';
+}
+
+// ─── DOWNLOAD ────────────────────────────────────────────────────
+function downloadSelected() {
+  guard(async () => {
+    const rows = selectedRows();
+    if (!rows.length) throw new Error('nothing selected');
+    followJob(await api('/api/download', {
+      products: rows.map(f => ({ name: f.properties.name, s3_key: f.properties.s3_key })),
+      folder: $('dlFolder').value,
+      aoi,
+    }));
+    status(`Downloading ${rows.length} product(s)…`, 'busy');
+  });
 }
 
 // ─── PATH FILE ───────────────────────────────────────────────────
@@ -125,5 +143,10 @@ initHooks.push(cfg => {
   $('start').value = cfg.start;
   $('end').value = cfg.end;
   $('pathFile').value = cfg.path_file;
+  $('dlFolder').placeholder = cfg.default_folder;
   $('pathInfo').textContent = `${cfg.path_file} (${cfg.style})`;
+});
+tabHooks.push(name => {
+  if (name === 'browse') { footLayer.addTo(map); syncSelection(); }
+  else map.removeLayer(footLayer);
 });

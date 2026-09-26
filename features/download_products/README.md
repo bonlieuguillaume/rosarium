@@ -4,7 +4,8 @@ Download the Sentinel-1 products of a path file from the Copernicus Data Space
 (CDSE) with [rclone](https://rclone.org/), in parallel, into `data/raw/<folder>/`.
 This is the step between [`aoi_to_slc`](../aoi_to_slc/README.md), which writes
 the path file, and the pre/post pipelines, which read the `.SAFE` folders. No
-notebook: it is a command.
+notebook: it is a command, and the webmap calls it (the *Download* button of
+the *Browse & download* tab, the first step of a *Pre / post* run).
 
 - `download_products.py` — `parallel_download(list_path, folder, ...)`, the
   filter-file builder (`build_filter_lines`, `build_filter_file`), the rclone
@@ -15,10 +16,12 @@ notebook: it is a command.
 
 1. The path file — `data/utils/list.txt` by default, one product per line in
    any of the three forms `aoi_to_slc` writes (`/eodata/...`, `s3://eodata/...`,
-   `eodata/...`) — is turned into an rclone **filter file**, `filter.txt`, next
-   to it: one `+ /Sentinel-1/SAR/.../<product>.SAFE/**` line per product and a
-   final `- *` that excludes everything else. Lines already in filter syntax
-   are kept, so a converted list can be fed again.
+   `eodata/...`) — loses the products whose `.SAFE` is already at the root of
+   `data/raw/<folder>/` (nothing is run when none is left), then the rest is
+   turned into an rclone **filter file**, `filter.txt`, next to it: one
+   `+ /Sentinel-1/SAR/.../<product>.SAFE/**` line per product and a final
+   `- *` that excludes everything else. Lines already in filter syntax are
+   kept, so a converted list can be fed again.
 2. One `rclone copy cdse:eodata . --filter-from filter.txt` runs in
    `data/raw/<folder>/`, with `--transfers 8 --multi-thread-streams 8`: every
    product at once, several streams per file. rclone walks only the listed
@@ -28,7 +31,16 @@ notebook: it is a command.
    tree pruned. A `.SAFE` already present is left alone (warning).
 
 The download resumes: rclone skips files already complete, so an interrupted
-run is simply launched again.
+run is simply launched again. And a product downloaded once is not downloaded
+again: without step 1's check it would be, since rclone looks for it at its
+bucket path, which the flattening emptied. A `.SAFE` reaches the root of the
+folder only after the whole copy succeeded, so its presence there means
+complete.
+
+From the webmap, rclone logs JSON statistics once a second instead of drawing
+its console progress (`reporter` argument of `parallel_download`, see
+`features/snap_gpt/snap_gpt.py`): the page shows bytes received, speed, ETA
+and files done.
 
 ## Configuring rclone
 

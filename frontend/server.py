@@ -16,6 +16,10 @@ and both may run at the same time.
 
 The page's defaults — path file, path style, map view, dates — come from the
 command line; the path file stays editable in the page.
+
+Downloads and pre/post runs are long: they run as a background job
+(`jobs.py`, one at a time) that the page polls. Closing the page stops the
+server, and the server stops the running job with it.
 """
 
 import argparse
@@ -23,6 +27,7 @@ import json
 import mimetypes
 import os
 import platform
+import shutil
 import sys
 import threading
 import time
@@ -39,7 +44,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from features.aoi_to_slc.aoi_to_slc import DEFAULT_STYLE, S3_PATH_STYLES  # noqa: E402
+from features.download_products.download_products import DEFAULT_FOLDER  # noqa: E402
+from features.snap_gpt.snap_gpt import DEFAULT_GPT  # noqa: E402
+from frontend import jobs  # noqa: E402
 from frontend.api import aoi_to_slc as api_aoi_to_slc  # noqa: E402
+from frontend.api import pre_post as api_pre_post  # noqa: E402
 
 STATIC = HERE / "static"
 # Also what `rosarium.py download` reads by default: the two ends meet there
@@ -48,7 +57,7 @@ DEFAULT_PATH_FILE = ROOT / "data" / "utils" / "list.txt"
 # The api modules serving the page, each with a `ROUTES` dict
 # {"GET": {path: fn}, "POST": {path: fn}} whose functions take (body, config).
 # A new feature in the page adds its module here.
-FEATURES = [api_aoi_to_slc]
+FEATURES = [api_pre_post, api_aoi_to_slc]
 
 # Filled by main() from the command line, handed to the page by /api/config
 # and to every route
@@ -97,7 +106,7 @@ def _collect_routes():
         "GET": {"/api/config": api_config},
         "POST": {"/api/ping": api_ping, "/api/bye": api_bye},
     }
-    for module in FEATURES:
+    for module in [jobs, *FEATURES]:
         for method, table in module.ROUTES.items():
             clash = set(table) & set(routes[method])
             if clash:
@@ -216,6 +225,8 @@ def _banner(url, args):
         f"  env        {env}  (python {platform.python_version()}, {sys.executable})",
         f"  repo       {ROOT}",
         f"  path file  {args.path_file}  ({args.style} style)",
+        f"  gpt        {DEFAULT_GPT or 'NOT FOUND - pre/post runs disabled'}",
+        f"  rclone     {shutil.which('rclone') or 'NOT FOUND - downloads disabled'}",
         "  " + ("Ctrl+C to stop" if args.stay else "stops when the page is closed; Ctrl+C to stop now"),
         "",
     ]
@@ -233,6 +244,9 @@ def main(argv=None, prog=None):
         start=(end - timedelta(days=args.days)).isoformat(), end=end.isoformat(),
         max_items=args.max_items,
         ping_interval=PING_INTERVAL,
+        default_folder=DEFAULT_FOLDER,
+        # What the jobs call; the page warns when one is missing
+        tools={"gpt": DEFAULT_GPT, "rclone": shutil.which("rclone")},
     )
 
     url = f"http://localhost:{args.port}/"
@@ -258,6 +272,9 @@ def main(argv=None, prog=None):
             print("\n  Server stopped.")
         finally:
             stop_watch.set()
+            # gpt and rclone are separate processes: they would outlive the
+            # server if not stopped here
+            jobs.shutdown()
     return 0
 
 

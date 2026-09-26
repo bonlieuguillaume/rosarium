@@ -11,6 +11,24 @@ SNAP is the one external dependency: its `gpt` executable is looked for in
 `SNAP_GPT`, on the PATH, then in the usual install folders (`find_gpt`), and
 `--gpt` overrides that. Every graph runs in a sub-process; nothing else of
 SNAP is used.
+
+Every ``run_*`` function, and the pipelines built on them, take an optional
+``reporter``. Without one (the command line), gpt writes straight to the
+console, as it always did. With one (the webmap), the progress goes to it
+instead; any object with these methods will do:
+
+    reporter.plan(steps)           announce step names about to run, in order
+                                   (added after those already announced)
+    reporter.step(name)            step ``name`` starts (the previous one is done)
+    reporter.info(key, value)      structured data for the page (JSON-able)
+    reporter.log(text)             one line of log
+    reporter.run(command, cwd=None, kind=None) -> int
+                                   run a sub-process, read its output, return
+                                   its exit code; ``kind`` ("gpt", "rclone")
+                                   says how to read the progress. May raise to
+                                   stop the run (cancellation).
+
+`frontend/jobs.py` holds the one the webmap uses.
 """
 
 import argparse
@@ -38,11 +56,13 @@ from features.polygon_to_swaths_bursts.polygon_to_swaths_bursts import (  # noqa
 # ---------------------------------------------------------------------------
 
 GRAPHS_DIR = Path(__file__).resolve().parent / "graphs"
-# Outputs of the pre/post pipelines: data/preprocessed/pre_post/<name>/, the
-# intermediate .dim products in temp/, runs without a name in default/
+# Outputs of the pre/post pipelines: data/preprocessed/pre_post/<name>/ (vrac
+# when the pipeline is given no name), the intermediate .dim products in
+# temp/, the single steps run without a name in default/
 PRE_POST_DIR = ROOT / "data" / "preprocessed" / "pre_post"
 TEMP_DIR = PRE_POST_DIR / "temp"
 DEFAULT_DIR = PRE_POST_DIR / "default"
+DEFAULT_RUN_NAME = "vrac"  # same as the default download folder, data/raw/vrac
 
 GRAPH_BACKSCATTER = GRAPHS_DIR / "backscatter.xml"
 GRAPH_COHERENCE = GRAPHS_DIR / "coherence.xml"
@@ -409,11 +429,29 @@ def _resolve_gathering_bands(
     return bands_pre, bands_post
 
 
+def step_name(graph: str, swath: Optional[str] = None) -> str:
+    """Name of one graph run in a reporter's step list: ``"coherence pre IW2"``.
+
+    The pipelines announce the list up front (``reporter.plan``) and the
+    ``run_*`` functions mark each step as it starts: both build the names
+    here so that they match.
+    """
+    return f"{graph} {swath}" if swath else graph
+
+
+def _swath_of(path) -> Optional[str]:
+    """The ``IWx`` suffix of a per-swath intermediate (``backscatter_IW2.dim``), or None."""
+    tail = Path(path).stem.rsplit("_", 1)[-1]
+    return tail if tail in ("IW1", "IW2", "IW3") else None
+
+
 def _run_gpt(
     gpt_path: Optional[str],
     graph_xml: Path,
     params: dict,
     gpt_options: GptOptions = DEFAULT_GPT_OPTIONS,
+    reporter=None,
+    step: Optional[str] = None,
 ) -> bool:
     """
     Internal helper: build a GPT command from a parameter dict and execute it.
@@ -421,6 +459,8 @@ def _run_gpt(
     Parameters are passed as ``-Pkey=value`` flags, substituting ``${key}``
     placeholders in the XML graph.  Memory / performance flags come from
     ``gpt_options`` (see the GptOptions section at the top of this module).
+    With a ``reporter`` (see the module docstring), ``step`` is marked as
+    started and the reporter runs gpt; without one, gpt writes to the console.
     Returns True on success, False on failure.
 
     Raises:
@@ -438,6 +478,12 @@ def _run_gpt(
     command = [str(gpt_path), str(graph_xml), "-e", *gpt_options.to_args()]
     for key, value in params.items():
         command.append(f"-P{key}={value}")
+
+    if reporter is not None:
+        if step:
+            reporter.step(step)
+        reporter.log(f"Running graph: {Path(graph_xml).name}")
+        return reporter.run(command, kind="gpt") == 0
 
     print(f"Running graph: {Path(graph_xml).name}")
     try:
@@ -459,6 +505,7 @@ def run_backscatter(
     output: Optional[str] = None,
     gpt_path: Optional[str] = DEFAULT_GPT,
     gpt_options: GptOptions = DEFAULT_GPT_OPTIONS,
+    reporter=None,
 ) -> list[bool]:
     """
     Run the backscatter graph on two Sentinel-1 SLC products.
@@ -490,6 +537,8 @@ def run_backscatter(
         gpt_path (str): Path to the SNAP GPT executable (default: ``find_gpt()``).
         gpt_options (GptOptions): Heap / cache / threads / tile size for gpt
             (see the top of this module).
+        reporter (optional): Progress receiver, see the module docstring;
+            one step per subswath, ``backscatter IWx``.
 
     Returns:
         list[bool]: One entry per processed subswath, True when gpt succeeded.
@@ -518,7 +567,8 @@ def run_backscatter(
             "first_burst": str(swath["first_burst"]),
             "last_burst": str(swath["last_burst"]),
         }
-        results.append(_run_gpt(gpt_path, GRAPH_BACKSCATTER, params, gpt_options))
+        results.append(_run_gpt(gpt_path, GRAPH_BACKSCATTER, params, gpt_options,
+                                reporter, step_name("backscatter", swath["subswath"])))
 
     return results
 
@@ -531,6 +581,7 @@ def run_coherence(
     output: Optional[str] = None,
     gpt_path: Optional[str] = DEFAULT_GPT,
     gpt_options: GptOptions = DEFAULT_GPT_OPTIONS,
+    reporter=None,
 ) -> list[bool]:
     """
     Run the coherence graph on two Sentinel-1 SLC products.
@@ -583,6 +634,8 @@ def run_coherence(
         gpt_path (str): Path to the SNAP GPT executable (default: ``find_gpt()``).
         gpt_options (GptOptions): Heap / cache / threads / tile size for gpt
             (see the top of this module).
+        reporter (optional): Progress receiver, see the module docstring;
+            one step per subswath, ``coherence <pair> IWx``.
 
     Returns:
         list[bool]: One entry per processed subswath, True when gpt succeeded.
@@ -626,7 +679,9 @@ def run_coherence(
         # variant without it
         one_burst = swath["first_burst"] == swath["last_burst"]
         graph = GRAPH_COHERENCE_ONE_BURST if one_burst else GRAPH_COHERENCE
-        results.append(_run_gpt(gpt_path, graph, params, gpt_options))
+        label = f"coherence {pair}" if pair else "coherence"
+        results.append(_run_gpt(gpt_path, graph, params, gpt_options,
+                                reporter, step_name(label, swath["subswath"])))
 
     return results
 
@@ -662,6 +717,7 @@ def run_gathering(
     output: Optional[str] = None,
     gpt_path: Optional[str] = DEFAULT_GPT,
     gpt_options: GptOptions = DEFAULT_GPT_OPTIONS,
+    reporter=None,
 ) -> list[str]:
     """
     Run the gathering graph to collocate a backscatter product with two
@@ -701,6 +757,9 @@ def run_gathering(
         gpt_path (str): Path to the SNAP GPT executable (default: ``find_gpt()``).
         gpt_options (GptOptions): Heap / cache / threads / tile size for gpt
             (see the top of this module).
+        reporter (optional): Progress receiver, see the module docstring;
+            one step, ``gathering IWx`` (``gathering`` when the backscatter
+            input carries no subswath suffix).
 
     Returns:
         list[str]: Paths of the GeoTIFF files that were successfully written
@@ -727,7 +786,8 @@ def run_gathering(
         "bands_pre": ",".join(bands_pre),
         "bands_post": ",".join(bands_post),
     }
-    _run_gpt(gpt_path, GRAPH_GATHERING, params, gpt_options)
+    _run_gpt(gpt_path, GRAPH_GATHERING, params, gpt_options,
+             reporter, step_name("gathering", _swath_of(input_backscatter)))
 
     produced = []
     clean_pre = [_clean_band_name(b) for b in bands_pre]
@@ -815,6 +875,7 @@ def run_backscatter_grd(
     output: Optional[str] = None,
     gpt_path: Optional[str] = DEFAULT_GPT,
     gpt_options: GptOptions = DEFAULT_GPT_OPTIONS,
+    reporter=None,
 ) -> list[str]:
     """
     Run the GRD backscatter graph on two Sentinel-1 GRD products and write
@@ -850,6 +911,8 @@ def run_backscatter_grd(
         gpt_path (str): Path to the SNAP GPT executable (default: ``find_gpt()``).
         gpt_options (GptOptions): Heap / cache / threads / tile size for gpt
             (see the top of this module).
+        reporter (optional): Progress receiver, see the module docstring;
+            two steps, ``backscatter_grd`` then ``split pre/post``.
 
     Returns:
         list[str]: Paths of the two GeoTIFFs that were successfully written
@@ -879,11 +942,13 @@ def run_backscatter_grd(
         "input2": post,
         "aoi": _aoi_to_wkt(aoi),
         "output": str(tmp_dim),
-    }, gpt_options)
+    }, gpt_options, reporter, step_name("backscatter_grd"))
 
     if not success or not tmp_dim.exists():
         return []
 
+    if reporter is not None:
+        reporter.step(step_name("split pre/post"))
     return _split_grd_stack(tmp_dim, output_pre, output_post)
 
 
