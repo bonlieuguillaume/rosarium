@@ -40,6 +40,10 @@ the layout and how a feature is added.
   install packages, modify the env, or run commands against their SAR products
   unless they explicitly ask. Ad-hoc checks belong in the scratchpad directory;
   a test server goes on a spare port and its outputs are removed afterwards.
+  The shell here is not in the env: run `~/miniforge3/envs/rosarium/python.exe`
+  and put `envs/rosarium/bin` first on the PATH when rclone is needed. Tests
+  that write through the features redirect their data dirs (e.g.
+  `download_products.RAW_DIR`) to the scratchpad, never the repo's `data/`.
 - Developed on Windows, **but every feature must run unchanged on Linux and
   macOS** — the repo gets cloned there. Rules: `pathlib` and `/`-agnostic
   paths, no hard-coded drive letters outside the users' parameter cells, no
@@ -190,7 +194,9 @@ longer helps.
   touching the image data. Module + CLI (`rosarium.py bursts`), a mirrored
   notebook, and a `README.md` detailing the algorithm, its accuracy limits and
   its usage. Used by `snap_gpt` to drive TOPSAR-Split (coarse mode there, the
-  module itself defaults to strict). Not in the front-end yet.
+  module itself defaults to strict). No tab of its own in the front-end; a
+  webmap SLC run draws its burst footprints (`load_burst_footprints`, via
+  `reporter.info("bursts")` in `main_preprocess`).
 - Not ported from the `geo` repo: `asf/` (gamma0 RTC through ASF HyP3). Left
   out on purpose.
 - `download_products`, `snap_gpt` and `pre_post` come from the `vigisar` repo
