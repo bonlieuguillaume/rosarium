@@ -20,7 +20,7 @@ from features.pre_post.pre_post_backscatter.pre_post_backscatter import main_pre
 from features.pre_post.pre_post_backscatter_coherence.pre_post_backscatter_coherence import (
     main_preprocess,
 )
-from features.snap_gpt.snap_gpt import DEFAULT_GPT, PRE_POST_DIR
+from features.snap_gpt.snap_gpt import DEFAULT_GPT, PRE_POST_DIR, product_mode_error
 from frontend import jobs
 
 UTILS_DIR = DEFAULT_PATH_FILE.parent
@@ -77,6 +77,10 @@ def api_run(body, config):
     post = _side(body, "post", PER_SIDE[mode])
     if max(p["datetime"] for p in pre) >= min(p["datetime"] for p in post):
         raise ValueError("every pre product must be older than every post product")
+    # Before the download: an EW / HH+HV product would only fail in SNAP
+    error = product_mode_error([p["s3_key"] for p in pre + post])
+    if error:
+        raise ValueError(error)
     folder, name = _names(body)
     if not DEFAULT_GPT:
         raise FileNotFoundError(

@@ -36,6 +36,10 @@ the layout and how a feature is added.
 
 ## Working rules
 
+- Tasks and priorities live in a GitHub Project of the repo (issues), driven
+  with `gh` (needs the `project` scope); a known limit goes in the feature's
+  README as well, since a clone does not carry the issues.
+
 - The user runs their own terminal, conda env and tests on real data. Do not
   install packages, modify the env, or run commands against their SAR products
   unless they explicitly ask. Ad-hoc checks belong in the scratchpad directory;
@@ -183,7 +187,9 @@ longer helps.
   `data/preprocessed/pre_post/<name>/`: `pre_post_backscatter_coherence/`
   (4 SLC -> gamma0 + coherence, `main_preprocess`) and
   `pre_post_backscatter/` (2 GRD -> gamma0 only, `main_preprocess_grd`).
-  Each has a notebook driving its module. On the command line they form the
+  Each has a notebook driving its module. IW VV+VH (`1SDV`) only: other
+  products are refused by name (`snap_gpt.product_mode_error`, CLI and
+  webmap run), and the *Pre / post* tab's mode is fixed to IW. On the command line they form the
   group `rosarium.py pre_post <backscatter_coherence|backscatter>`, the
   sub-command named after the folder; `--output` defaults to `vrac`. In the
   webmap, the *Pre / post* tab (`frontend/api/pre_post.py`) downloads then

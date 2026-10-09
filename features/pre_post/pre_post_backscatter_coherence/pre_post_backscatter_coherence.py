@@ -38,6 +38,7 @@ from features.snap_gpt.snap_gpt import (  # noqa: E402
     antimeridian_error,
     gpt_options_from_args,
     polygon_to_swaths_bursts,
+    product_mode_error,
     run_backscatter,
     run_coherence,
     run_gathering,
@@ -300,7 +301,8 @@ def _build_parser(prog=None):
 def main(argv=None, prog=None):
     parser = _build_parser(prog)
     args = parser.parse_args(argv)
-    error = antimeridian_error(args.aoi)
+    error = (product_mode_error([args.pre1, args.pre2, args.post1, args.post2])
+             or antimeridian_error(args.aoi))
     if error:
         parser.error(error)
     result = main_preprocess(

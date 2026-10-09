@@ -85,6 +85,13 @@ Example, a large AOI on a 16 GB laptop:
 
 ## Conventions the graphs and the Python share
 
+**IW, VV+VH only.** The graphs are written for IW products in dual-pol VV+VH
+(`S1x_IW_..._1SDV_...`): IW sub-swaths in `TOPSAR-Split`, `VH,VV` selected in
+the coherence graphs, band names predicted from VV / VH. EW, SM, HH+HV
+(`1SDH`, polar areas) and single-pol (`1SSV`, `1SSH`) products are refused
+from their name before anything runs (`product_mode_error`, used by every
+command taking products and by the webmap before its download).
+
 **Sub-swaths and bursts.** The SLC graphs process one sub-swath at a time
 (`TOPSAR-Split`), on the burst range the AOI needs. That range comes from the
 [`polygon_to_swaths_bursts`](../polygon_to_swaths_bursts/README.md) feature

@@ -33,6 +33,7 @@ instead; any object with these methods will do:
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -331,6 +332,29 @@ def antimeridian_error(aoi: str) -> Optional[str]:
         "with its own --output:\n"
         f'  west: --aoi "{parts[0].wkt}"\n'
         f'  east: --aoi "{parts[1].wkt}"'
+    )
+
+
+def product_mode_error(products: list[str]) -> Optional[str]:
+    """Message naming the products the graphs cannot take; None if all can.
+
+    The graphs are written for IW dual-pol VV+VH (``..._IW_<type>_1SDV_...``):
+    TOPSAR-Split on IW sub-swaths, polarisations VH,VV in the coherence graphs,
+    band names predicted from VV / VH.  EW, SM, HH+HV (``1SDH``) or single-pol
+    (``1SSV``, ``1SSH``) would fail in SNAP, or come out mislabelled.  Judged
+    on the product name (``.SAFE`` folder, ``.zip`` or S3 path); a name that
+    does not look like a Sentinel-1 product is let through.
+    """
+    wrong = []
+    for product in products:
+        name = Path(str(product).rstrip("/\\")).name
+        if re.match(r"S1[A-Z]_", name) and not re.match(r"S1[A-Z]_IW_.{4}_\dSDV_", name):
+            wrong.append(name)
+    if not wrong:
+        return None
+    return (
+        "only IW products in VV+VH (S1x_IW_..._1SDV_...) are supported, not: "
+        + ", ".join(wrong)
     )
 
 
@@ -1307,8 +1331,9 @@ def main(argv=None, prog=None):
     if args.command == "mosaic":
         print(run_mosaic(args.inputs, args.output))
         return 0
-    if getattr(args, "aoi", None):  # gathering takes no AOI
-        error = antimeridian_error(args.aoi)
+    if getattr(args, "aoi", None):  # gathering takes no AOI nor products
+        products = [getattr(args, k) for k in ("input1", "input2", "pre", "post") if getattr(args, k, None)]
+        error = product_mode_error(products) or antimeridian_error(args.aoi)
         if error:
             parser.error(error)
 

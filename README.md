@@ -17,8 +17,8 @@ it, download them, preprocess them into analysis-ready GeoTIFFs.
 | --- | --- |
 | [`aoi_to_slc`](features/aoi_to_slc/README.md) | From an area of interest to the Sentinel-1 SLC / GRD products covering it: search the CDSE STAC catalogue, tick products on a map, write their S3 paths to a text file. No credentials for the search. |
 | [`download_products`](features/download_products/README.md) | That path file, downloaded: one parallel `rclone copy` from CDSE, then every `.SAFE` flattened into `data/raw/<folder>/`; products already there are skipped. |
-| [`pre_post/pre_post_backscatter_coherence`](features/pre_post/pre_post_backscatter_coherence/README.md) | Four SLC products (2 before an event, 2 after) → `<name>_pre.tif` and `<name>_post.tif`, bands `gamma0_VH`, `gamma0_VV`, `coh_VH`, `coh_VV`. |
-| [`pre_post/pre_post_backscatter`](features/pre_post/pre_post_backscatter/README.md) | Two GRD products (1 before, 1 after) → the same two files with the two `gamma0` bands. No coherence: GRD is detected. |
+| [`pre_post/pre_post_backscatter_coherence`](features/pre_post/pre_post_backscatter_coherence/README.md) | Four IW SLC products in VV+VH (2 before an event, 2 after) → `<name>_pre.tif` and `<name>_post.tif`, bands `gamma0_VH`, `gamma0_VV`, `coh_VH`, `coh_VV`. |
+| [`pre_post/pre_post_backscatter`](features/pre_post/pre_post_backscatter/README.md) | Two IW GRD products in VV+VH (1 before, 1 after) → the same two files with the two `gamma0` bands. No coherence: GRD is detected. |
 | [`snap_gpt`](features/snap_gpt/README.md) | The SNAP graphs the two pipelines run, each reachable on its own: backscatter, coherence, gathering, backscatter-grd, and the mosaic of per-sub-swath tiles. |
 | [`polygon_to_swaths_bursts`](features/polygon_to_swaths_bursts/README.md) | Which sub-swaths and bursts of a Sentinel-1 SLC product a polygon intersects, read from the annotation XML without opening the image data. |
 
@@ -178,6 +178,13 @@ from features.polygon_to_swaths_bursts.polygon_to_swaths_bursts import get_inter
 from features.pre_post.pre_post_backscatter_coherence.pre_post_backscatter_coherence import main_preprocess
 from features.pre_post.pre_post_backscatter.pre_post_backscatter import main_preprocess_grd
 ```
+
+## Roadmap
+
+Planned work, bugs and priorities are tracked in a GitHub Project (the
+*Projects* tab of the repository on GitHub), not in the repository itself: a
+clone does not carry them. The known limits of each feature stay documented in
+its README.
 
 ## Adding a feature
 

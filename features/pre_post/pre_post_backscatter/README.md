@@ -1,6 +1,7 @@
 # pre_post_backscatter
 
-From two Sentinel-1 **GRD** products — one before an event, one after — to two
+From two Sentinel-1 **IW GRD** products in **VV+VH** (`..._1SDV_...`; EW, SM,
+HH+HV and single-pol are refused) — one before an event, one after — to two
 analysis-ready GeoTIFFs over an area of interest: `<name>_pre.tif` and
 `<name>_post.tif`, each with `gamma0_VH` and `gamma0_VV` on the same 10 m grid.
 The GRD counterpart of

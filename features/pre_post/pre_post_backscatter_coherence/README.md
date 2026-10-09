@@ -1,6 +1,7 @@
 # pre_post_backscatter_coherence
 
-From four Sentinel-1 **SLC** products — two before an event, two after — to two
+From four Sentinel-1 **IW SLC** products in **VV+VH** (`..._1SDV_...`; EW, SM,
+HH+HV and single-pol are refused) — two before an event, two after — to two
 analysis-ready GeoTIFFs over an area of interest: `<name>_pre.tif` and
 `<name>_post.tif`, each with four bands, `gamma0_VH`, `gamma0_VV`, `coh_VH`,
 `coh_VV`, on the same 10 m grid. Backscatter says what the ground looks like on
