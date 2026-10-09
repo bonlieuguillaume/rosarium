@@ -145,7 +145,12 @@ longer helps.
   results also carry `covers_aoi` and `centroid` for the pre/post selection,
   added in `frontend/api/aoi_to_slc.py`). Search = CDSE STAC hit
   directly with `requests`, anonymous, no credentials. Not asf_search: no
-  `eodata` paths there. **GRD = the COG variant**, the only one in the CDSE
+  `eodata` paths there. An AOI across ±180° is refused (web search, notebook
+  UI, and the `gpt` / `pre_post` command lines through
+  `snap_gpt.antimeridian_error`) and offered as two halves
+  (`split_antimeridian`, 1e-6° short of the line), one run each: CDSE footprints come back cut at ±180, which breaks
+  `covers_aoi`/`centroid`, and SNAP's Subset there is untested.
+  **GRD = the COG variant**, the only one in the CDSE
   STAC — a distinct product from the original GRD (other checksum suffix,
   `IW_GRDH_1S-COG` folder), accepted deliberately since the user's chain runs
   SNAP 13 (COG readable from SNAP 10). If originals are ever needed, CDSE

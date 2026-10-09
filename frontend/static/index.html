@@ -35,6 +35,7 @@
         <div class="hint">Draw with the toolbar on the map (polygon or rectangle), or paste WKT / GeoJSON in lon/lat.</div>
         <textarea id="aoiText" rows="3" placeholder="POLYGON ((lon lat, ...)) — or GeoJSON"></textarea>
         <div class="aoi-area" id="aoiArea"></div>
+        <div id="aoiSplit" class="warn" hidden></div>
         <div class="btn-row">
           <button class="btn primary" onclick="useAoiText()">Use this AOI</button>
           <button class="btn" onclick="clearAll()">Clear</button>

@@ -184,6 +184,16 @@ in lon/lat WGS84 — the `<name>_aoi.geojson` that the webmap writes next to the
 path file works as is. The module also runs on its own with the same options:
 `python features/snap_gpt/snap_gpt.py <step> ...`.
 
+**Antimeridian.** An `--aoi` crossing ±180° is refused before anything runs
+(`antimeridian_error`, also called by the two `pre_post` commands): the error
+prints the AOI's two halves as ready-to-paste `--aoi` values, to run one after
+the other with distinct `--output` names. The halves stop 1e-6° (~0.1 m) short
+of the line, since a tool normalising 180 to -180 would turn the western half
+into a 360°-wide polygon. Why refuse rather than run: the CDSE footprints are
+cut at ±180 and SNAP's `Subset` across the line has never been tested.
+Merging the two results (`run_mosaic` takes GeoTIFFs in different UTM zones)
+is untested as well.
+
 From Python (repository root on `sys.path`):
 
 ```python
@@ -197,4 +207,5 @@ run_backscatter("pre2.SAFE", "post1.SAFE", "aoi.geojson", gpt_options=opts)
 
 conda-forge: `gdal` (the `osgeo` module: band cleanup, GRD split, mosaic),
 `scipy` (distance transform of the mosaic), `numpy`, plus `geopandas` /
-`shapely` through `polygon_to_swaths_bursts`. External: SNAP (above).
+`shapely` through `polygon_to_swaths_bursts`, `requests` / `pandas` through
+`aoi_to_slc` (`split_antimeridian`). External: SNAP (above).

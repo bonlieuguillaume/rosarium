@@ -28,6 +28,7 @@ from features.snap_gpt.snap_gpt import (  # noqa: E402
     GptOptions,
     _is_path,
     add_gpt_options,
+    antimeridian_error,
     gpt_options_from_args,
     run_backscatter_grd,
     step_name,
@@ -190,6 +191,9 @@ def _build_parser(prog=None):
 def main(argv=None, prog=None):
     parser = _build_parser(prog)
     args = parser.parse_args(argv)
+    error = antimeridian_error(args.aoi)
+    if error:
+        parser.error(error)
     result = main_preprocess_grd(
         pre=args.pre,
         post=args.post,

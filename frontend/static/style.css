@@ -183,6 +183,7 @@ body.job-running .needs-idle { opacity: 0.4; pointer-events: none; }
   border-radius: 4px; padding: 6px 8px; margin: 8px 0 0;
 }
 .sidebar-top > .warn { margin: 10px 16px 0; }
+#aoiSplit .btn { margin: 6px 6px 0 0; }
 .slots { display: flex; flex-direction: column; gap: 4px; }
 .slot {
   display: flex; align-items: center; gap: 8px; padding: 4px 8px;

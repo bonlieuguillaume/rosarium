@@ -12,6 +12,7 @@ writes the list — or through the ipyleaflet + ipywidgets interface returned by
 """
 
 import json
+import math
 import re
 import time
 from datetime import date, datetime, timedelta, timezone
@@ -21,7 +22,8 @@ import geopandas as gpd
 import pandas as pd
 import requests
 from shapely import wkt as shapely_wkt
-from shapely.geometry import mapping, shape
+from shapely.affinity import translate
+from shapely.geometry import MultiPolygon, Polygon, box, mapping, shape
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
@@ -122,6 +124,64 @@ def parse_aoi(aoi):
         return shapely_wkt.loads(text)
     except Exception as exc:  # shapely raises several unrelated types here
         raise ValueError(f"not a WKT geometry, not GeoJSON: {text[:60]!r}") from exc
+
+
+# How far short of ±180° the two halves of a split AOI stop: ±180 is one and
+# the same meridian, and a tool that normalises 180 to -180 would turn the
+# western half into a 360°-wide polygon. 1e-6° is ~0.1 m, far below a pixel;
+# the CDSE footprints themselves stop at ±179.9999999.
+ANTIMERIDIAN_GAP = 1e-6
+
+
+def _unwrap_ring(coords):
+    """Ring spanning more than 180° of longitude: read it the short way round.
+
+    Such a ring was meant to cross ±180 (an AOI is never that wide): its
+    negative longitudes are shifted by +360, giving a continuous ring in a
+    [0, 360) frame. Same rule as in polygon_to_swaths_bursts.
+    """
+    lons = [lon for lon, *_ in coords]
+    if max(lons) - min(lons) > 180:
+        coords = [(lon + 360 if lon < 0 else lon, *rest) for lon, *rest in coords]
+    return coords
+
+
+def split_antimeridian(aoi):
+    """The AOI in [-180, 180] longitudes, cut in two if it crosses ±180°.
+
+    Two inputs mean a crossing: longitudes beyond ±180 (what a web map gives
+    when the shape is drawn across the line) and a ring wider than 180°
+    (pasted coordinates jumping from 179 to -179). An AOI drawn whole on
+    another copy of the world is brought back into [-180, 180].
+
+    Parameters
+    ----------
+    aoi : shapely geometry | dict | str | Path
+        See `parse_aoi`.
+
+    Returns
+    -------
+    list of shapely geometries
+        One geometry when the AOI does not cross the antimeridian; otherwise
+        the western part (up to 180 - ANTIMERIDIAN_GAP) and the eastern part
+        (from -180 + ANTIMERIDIAN_GAP), to process as two AOIs.
+    """
+    geom = parse_aoi(aoi)
+    polys = list(geom.geoms) if geom.geom_type == "MultiPolygon" else [geom]
+    if all(p.geom_type == "Polygon" for p in polys):
+        polys = [
+            Polygon(_unwrap_ring(p.exterior.coords), [_unwrap_ring(r.coords) for r in p.interiors])
+            for p in polys
+        ]
+        geom = polys[0] if len(polys) == 1 else MultiPolygon(polys)
+
+    # Bring the western edge into [-180, 180): a crossing then shows as x > 180
+    geom = translate(geom, xoff=-360 * math.floor((geom.bounds[0] + 180) / 360))
+    if geom.bounds[2] <= 180:
+        return [geom]
+    west = geom.intersection(box(-180, -90, 180 - ANTIMERIDIAN_GAP, 90))
+    east = translate(geom.intersection(box(180 + ANTIMERIDIAN_GAP, -90, 540, 90)), xoff=-360)
+    return [west, east]
 
 
 def save_aoi(aoi, path):
@@ -407,7 +467,7 @@ class AoiToSlcUI:
     """Webmap interface: draw or paste an AOI, search, tick products, write the list.
 
     Everything the user does is also reachable from Python: `aoi` (shapely
-    geometry), `results` (the last search, a GeoDataFrame), `selected` (the
+    geometry), `aoi_parts` (its two halves when it crosses ±180), `results` (the last search, a GeoDataFrame), `selected` (the
     ticked rows), `s3_paths` (their S3 paths) and `written` (the path files
     written so far).
     """
@@ -431,6 +491,7 @@ class AoiToSlcUI:
         self.style = style
         self.max_items = max_items
         self.aoi = None
+        self.aoi_parts = None  # the two halves of an AOI across ±180, else None
         self.results = None
         self.written = []
 
@@ -572,24 +633,47 @@ class AoiToSlcUI:
 
     # --- handlers ---
 
+    def _check_antimeridian(self, geom):
+        """The AOI back in [-180, 180]; warn and keep its halves if it crosses ±180.
+
+        Such an AOI is refused by `_search` (CDSE footprints and SNAP's
+        geocoding are cut at the line): `aoi_parts` holds its two halves,
+        one run each.
+        """
+        parts = split_antimeridian(geom)
+        self.aoi_parts = parts if len(parts) > 1 else None
+        if self.aoi_parts:
+            self.status.value = (
+                '<span style="color:#d62728">This AOI crosses the antimeridian (±180°). '
+                "Run the pipeline twice, once per half, with a different output name: "
+                "paste one half below and click 'Use this AOI'.</span>"
+                f"<br><b>West half</b>: <code>{parts[0].wkt}</code>"
+                f"<br><b>East half</b>: <code>{parts[1].wkt}</code>"
+            )
+            return geom
+        return parts[0]
+
     def _on_draw(self, control, action, geo_json):
         if action != "created":
             return
-        geom = shape(geo_json["geometry"])
         # The DrawControl keeps its own copy of the shape: drop it and show the
         # AOI through aoi_layer instead, so only one AOI ever exists
         control.clear()
+        geom = self._check_antimeridian(shape(geo_json["geometry"]))
         self._set_aoi(geom, fit=False)
         self.aoi_text.value = geom.wkt
-        self.status.value = f"AOI set from the map ({geom.geom_type}, {geom.area:.4f} deg²)."
+        if not self.aoi_parts:
+            self.status.value = f"AOI set from the map ({geom.geom_type}, {geom.area:.4f} deg²)."
 
     def _use_text(self):
-        geom = parse_aoi(self.aoi_text.value)
+        geom = self._check_antimeridian(parse_aoi(self.aoi_text.value))
         self._set_aoi(geom)
-        self.status.value = f"AOI set from text ({geom.geom_type}, {geom.area:.4f} deg²)."
+        if not self.aoi_parts:
+            self.status.value = f"AOI set from text ({geom.geom_type}, {geom.area:.4f} deg²)."
 
     def _clear(self):
         self.aoi = None
+        self.aoi_parts = None
         self.results = None
         self.aoi_text.value = ""
         self.list.options = []
@@ -605,6 +689,8 @@ class AoiToSlcUI:
     def _search(self):
         if self.aoi is None:
             raise ValueError("no AOI: draw one on the map or paste one and click 'Use this AOI'")
+        if self.aoi_parts:
+            raise ValueError("the AOI crosses the antimeridian: use one half (see `aoi_parts`), then the other")
         if self.start.value is None or self.end.value is None:
             raise ValueError("both dates are needed")
         self.status.value = "Searching…"

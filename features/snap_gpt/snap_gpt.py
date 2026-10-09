@@ -45,6 +45,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:  # so the module also runs from its own folder
     sys.path.insert(0, str(ROOT))
 
+from features.aoi_to_slc.aoi_to_slc import split_antimeridian  # noqa: E402
 from features.polygon_to_swaths_bursts.polygon_to_swaths_bursts import (  # noqa: E402
     get_intersecting_bursts,
     parse_polygon,
@@ -313,6 +314,24 @@ def _aoi_to_wkt(aoi: str) -> str:
     reads ``${aoi}`` as WKT, so a file is parsed and re-serialised here.
     """
     return parse_polygon(aoi).wkt
+
+
+def antimeridian_error(aoi: str) -> Optional[str]:
+    """Message for an AOI crossing +/-180 deg, giving its two halves; None otherwise.
+
+    For the command lines, which refuse such an AOI: the CDSE footprints are
+    cut at the line and SNAP's Subset across it is untested, so the halves
+    (``split_antimeridian``) are run one after the other.
+    """
+    parts = split_antimeridian(aoi)
+    if len(parts) == 1:
+        return None
+    return (
+        "the AOI crosses the antimeridian (+/-180 deg). Run once per half, each "
+        "with its own --output:\n"
+        f'  west: --aoi "{parts[0].wkt}"\n'
+        f'  east: --aoi "{parts[1].wkt}"'
+    )
 
 
 def polygon_to_swaths_bursts(product_path: str, aoi: str, coarse: bool = True) -> list[dict]:
@@ -1288,6 +1307,10 @@ def main(argv=None, prog=None):
     if args.command == "mosaic":
         print(run_mosaic(args.inputs, args.output))
         return 0
+    if getattr(args, "aoi", None):  # gathering takes no AOI
+        error = antimeridian_error(args.aoi)
+        if error:
+            parser.error(error)
 
     gpt_options = gpt_options_from_args(args)
 

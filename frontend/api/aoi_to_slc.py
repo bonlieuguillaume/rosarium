@@ -11,13 +11,16 @@ import math
 from pathlib import Path
 
 import pandas as pd
+from shapely.affinity import translate
 from shapely.geometry import mapping
+from shapely.ops import unary_union
 
 from features.aoi_to_slc.aoi_to_slc import (
     DEFAULT_PATH_FILE,
     format_s3_path,
     parse_aoi,
     search_products,
+    split_antimeridian,
     write_path_file,
 )
 from features.download_products.download_products import DEFAULT_FOLDER, parallel_download
@@ -55,15 +58,25 @@ def _feature(row, style, aoi):
 
 
 def api_parse_aoi(body, _config):
-    geom = parse_aoi(body.get("text", ""))
-    return {"geometry": mapping(geom), "type": geom.geom_type}
+    """The AOI back in [-180, 180]; `parts` holds its two halves when it crosses ±180."""
+    parts = split_antimeridian(body.get("text", ""))
+    # A crossing AOI is shown whole, its eastern half past 180 so that the map
+    # draws one shape rather than a band around the world
+    geom = parts[0] if len(parts) == 1 else unary_union([parts[0], translate(parts[1], xoff=360)])
+    return {
+        "geometry": mapping(geom), "type": geom.geom_type,
+        "parts": [{"geometry": mapping(p), "wkt": p.wkt} for p in parts] if len(parts) > 1 else None,
+    }
 
 
 def api_search(body, config):
     for key in ("aoi", "start", "end"):
         if not body.get(key):
             raise ValueError(f"{key} is missing")
-    aoi = parse_aoi(body["aoi"])
+    parts = split_antimeridian(body["aoi"])
+    if len(parts) > 1:
+        raise ValueError("the AOI crosses the antimeridian: use one half, then the other")
+    aoi = parts[0]
     products = search_products(
         aoi, body["start"], body["end"],
         product_type=body.get("product_type") or "SLC",

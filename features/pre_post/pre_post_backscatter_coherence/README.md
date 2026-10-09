@@ -98,7 +98,9 @@ python rosarium.py pre_post backscatter_coherence --help
 
 `--aoi` takes an inline WKT polygon (quoted) or a WKT / GeoJSON file in lon/lat
 WGS84 — the `<name>_aoi.geojson` the webmap writes next to the path file. The
-products may be `.SAFE` folders or the `.zip` archives.
+products may be `.SAFE` folders or the `.zip` archives. An AOI crossing the
+antimeridian is refused, with its two halves to run separately (see
+*Antimeridian* in the `snap_gpt` README).
 
 From Python (repository root on `sys.path`, or from this folder as the
 notebook does):

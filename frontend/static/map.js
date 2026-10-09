@@ -70,10 +70,15 @@ map.addControl(new L.Control.Draw({
 }));
 map.on(L.Draw.Event.CREATED, e => {
   if (e.layerType === 'polyline') { showMeasure(e.layer); return; }
-  const geom = e.layer.toGeoJSON().geometry;
-  setAoi(geom, false);
-  $('aoiText').value = toWkt(geom);
-  status(`AOI set from the map (${geom.type}, ${formatKm2(areaKm2(geom))}).`);
+  // Through the server like a pasted AOI: it brings the longitudes back into
+  // [-180, 180] and tells whether the shape crosses the antimeridian
+  guard(async () => {
+    const js = await api('/api/parse_aoi', { text: JSON.stringify(e.layer.toGeoJSON().geometry) });
+    setAoi(js.geometry, false);
+    $('aoiText').value = toWkt(js.geometry);
+    showSplit(js.parts);
+    if (!js.parts) status(`AOI set from the map (${js.type}, ${formatKm2(areaKm2(js.geometry))}).`);
+  });
 });
 
 // ─── RULER ───────────────────────────────────────────────────────
@@ -147,8 +152,31 @@ function useAoiText() {
   guard(async () => {
     const js = await api('/api/parse_aoi', { text: $('aoiText').value });
     setAoi(js.geometry);
-    status(`AOI set from text (${js.type}, ${formatKm2(areaKm2(js.geometry))}).`);
+    showSplit(js.parts);
+    if (!js.parts) status(`AOI set from text (${js.type}, ${formatKm2(areaKm2(js.geometry))}).`);
   });
+}
+// An AOI across ±180° is refused by the search (CDSE footprints and SNAP's
+// geocoding are cut at the line): offer its two halves, one run each
+function showSplit(parts) {
+  const box = $('aoiSplit');
+  box.hidden = !parts;
+  if (!parts) return;
+  box.innerHTML = '<div>This AOI crosses the antimeridian (±180°). Run the pipeline twice, '
+    + 'once per half, with a different output name:</div>';
+  ['West half (up to 180°)', 'East half (from -180°)'].forEach((label, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.textContent = `Use ${label}`;
+    btn.title = parts[i].wkt;
+    btn.onclick = () => {
+      $('aoiText').value = parts[i].wkt;
+      setAoi(parts[i].geometry);
+      status(`AOI set to the ${label.toLowerCase()}; the other half stays in the box.`);
+    };
+    box.appendChild(btn);
+  });
+  status('The AOI crosses the antimeridian: pick one half (sidebar).', 'err');
 }
 // Feature scripts register here what "Clear" must reset on their side
 const clearHooks = [];
@@ -158,6 +186,7 @@ function clearAll() {
   measureLayer.clearLayers();
   $('aoiText').value = '';
   $('aoiArea').textContent = '';
+  showSplit(null);
   clearHooks.forEach(fn => fn());
   status('Cleared.');
 }

@@ -11,7 +11,7 @@ pipelines (*Pre / post* tab), whose search goes through `search_products` too.
 
 - `aoi_to_slc.py` — the logic: the search (`search_products`), the path file
   (`write_path_file`, `s3_paths`, `format_s3_path`), the AOI helpers
-  (`parse_aoi`, `save_aoi`), plus a notebook interface (`build_ui`, ipyleaflet +
+  (`parse_aoi`, `save_aoi`, `split_antimeridian`), plus a notebook interface (`build_ui`, ipyleaflet +
   ipywidgets). Usable as a library without the widget packages.
 - `aoi_to_slc.ipynb` — the interface inside a notebook, plus the calls from
   plain Python. A thin driver of the module, *not* a mirror of it.
@@ -139,6 +139,14 @@ or the path of a WKT / GeoJSON file. Coordinates are lon/lat (EPSG:4326).
 - The CDSE front-end answers HTTP 429 to bursts of requests; the search retries
   with an exponential back-off. Listing a few hundred products takes a little
   longer, nothing more.
+- **An AOI crossing the antimeridian (±180°) is refused** by the search, in the
+  browser and in the notebook: a box (or the status line) gives its two halves,
+  to run one after the other. `split_antimeridian` cuts it, 1e-6° short of the
+  line on each side. The reason: the CDSE STAC returns footprints cut at ±180
+  as MultiPolygons, which breaks the "covers the whole AOI" test and the
+  footprint centroids the *Pre / post* tab pairs products with. An AOI drawn on
+  another copy of the world (longitudes beyond ±180) is brought back into
+  [-180, 180].
 - Sentinel-1 SLC bursts as products are not covered: whole products only here.
   Which bursts of a product cover the AOI is `polygon_to_swaths_bursts`'s job.
 - The browser page loads Leaflet, Leaflet.draw and the basemap tiles from the
