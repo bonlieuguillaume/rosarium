@@ -24,7 +24,8 @@ the layout and how a feature is added.
   no pip-only packages, nothing Windows-only. Two binaries are called as
   sub-processes rather than imported: rclone (`download`), which is a
   conda-forge package like the rest, and SNAP's `gpt` (the pre/post
-  pipelines), the one thing installed outside the env by the user. Both ship
+  pipelines), the one thing installed outside the env by the user — SNAP 13,
+  the only version tested; the docs say so, keep them in step if that changes. Both ship
   for Windows, Linux and macOS, and both are located at runtime (`find_gpt`,
   `shutil.which`), never hard-coded — a lookup that covers the three
   platforms, not just the one at hand. Anything else that would have to be

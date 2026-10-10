@@ -49,7 +49,8 @@ XML, measurements as Zstandard-compressed COG (~30 % lighter), always online
 where an original older than a year may sit in cold storage. The two are
 distinct products with different checksum suffixes, so one cannot be derived
 from the other. The STAC catalogue lists the COG only, and this tool goes with
-it: SNAP reads it from version 10 with the preprocessing graph unchanged. The
+it: SNAP reads it from version 10 with the preprocessing graph unchanged (the
+pipelines are tested with SNAP 13). The
 name difference matters only when cross-referencing by name with catalogues
 that ignore the COG (ASF, HyP3). SLC products have no such variant.
 

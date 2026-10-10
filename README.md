@@ -67,8 +67,10 @@ mamba env update -n rosarium -f env_light_rosarium.yml
 
 Two things the env cannot do on its own:
 
-- **SNAP** (≥ 10), for the pre/post pipelines, is installed separately —
-  <https://step.esa.int/main/download/snap-download/>. Only its `gpt` runner is
+- **SNAP 13**, for the pre/post pipelines, is installed separately —
+  <https://step.esa.int/main/download/snap-download/>. It is the version the
+  chain is tested with; others are untested (see the
+  [`snap_gpt`](features/snap_gpt/README.md) README). Only its `gpt` runner is
   used; it is looked up in `SNAP_GPT`, on the PATH, then in the usual install
   folders, and `--gpt PATH` overrides that.
 - **rclone** comes with the env, but its CDSE remote is configured once, with

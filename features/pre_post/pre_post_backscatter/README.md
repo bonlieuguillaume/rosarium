@@ -47,7 +47,7 @@ coherence bands.
 
 **GRD from `aoi_to_slc` are the COG variant** (`..._COG.SAFE`), the only one in
 the CDSE STAC: same values and same annotation as the original GRD, readable by
-SNAP from version 10.
+SNAP from version 10. The pipeline is tested with SNAP 13.
 
 ## Usage
 

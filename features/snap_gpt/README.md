@@ -24,8 +24,10 @@ of its own — the pipelines are the user-facing side.
 ## SNAP: the external dependency
 
 SNAP is not a conda package: install it from
-<https://step.esa.int/main/download/snap-download/> (SNAP 10 or later, so that
-the COG variant of GRD products that `aoi_to_slc` lists can be read). Only its
+<https://step.esa.int/main/download/snap-download/>. **Use SNAP 13**: it is the
+only version the graphs and the pipelines have been run with. Version 10 is a
+hard floor anyway, since earlier ones cannot read the COG variant of the GRD
+products that `aoi_to_slc` lists; versions 10–12 and 14 are untested. Only its
 `gpt` command-line runner is used, in a sub-process, never the GUI.
 
 `find_gpt()` locates it, in this order: the `SNAP_GPT` environment variable,
