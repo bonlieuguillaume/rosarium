@@ -20,3 +20,4 @@ dependencies:
   # installed outside conda, see the READMEs of snap_gpt / download_products)
   - gdal
   - scipy 
+  
