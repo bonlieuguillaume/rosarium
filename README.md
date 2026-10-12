@@ -183,9 +183,10 @@ from features.pre_post.pre_post_backscatter.pre_post_backscatter import main_pre
 
 ## Roadmap
 
-Planned work, bugs and priorities are tracked in a GitHub Project (the
-*Projects* tab of the repository on GitHub), not in the repository itself: a
-clone does not carry them. The known limits of each feature stay documented in
+Planned work, bugs and priorities are tracked in the
+[rosarium GitHub Project](https://github.com/users/bonlieuguillaume/projects/1),
+fed by the [issues](https://github.com/bonlieuguillaume/rosarium/issues) of
+this repository — not in the repository itself: a clone does not carry them. The known limits of each feature stay documented in
 its README.
 
 ## Adding a feature

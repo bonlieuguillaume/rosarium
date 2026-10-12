@@ -1,0 +1,32 @@
+# rosarium in Docker: `docker compose up --build`, then open
+# http://localhost:8050 (or the ROSARIUM_PORT set in .env).
+# Settings (CDSE credentials, port, uid) go in .env: copy .env.example.
+
+services:
+  rosarium:
+    build:
+      context: .
+      args:
+        # Owner of the files written into data/ on Linux (`id -u` / `id -g`)
+        ROSARIUM_UID: ${ROSARIUM_UID:-1000}
+        ROSARIUM_GID: ${ROSARIUM_GID:-1000}
+    image: rosarium:dev
+    ports:
+      # host:container. 127.0.0.1 = this computer only: the webmap has no
+      # login, it must not be reachable from the network.
+      - "127.0.0.1:${ROSARIUM_PORT:-8050}:8050"
+    volumes:
+      # The repository's data/: products, outputs and path files stay on the
+      # host, where the code expects them (ROOT/data, ROOT = /app here)
+      - ./data:/app/data
+      # SNAP's downloads (DEM tiles, orbit files), kept between containers
+      - snap-auxdata:/home/mambauser/.snap/auxdata
+    env_file:
+      # rclone's `cdse` remote, from environment variables (see .env.example)
+      - path: .env
+        required: false
+    # The webmap stops when its page is closed; the container is not restarted
+    restart: "no"
+
+volumes:
+  snap-auxdata:

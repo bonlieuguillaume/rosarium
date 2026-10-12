@@ -1,0 +1,28 @@
+# Kept out of the build context: sent to Docker on every build otherwise,
+# and nothing here belongs in the image.
+
+# The user's products and outputs: a volume, never copied
+data/
+
+# Secrets
+.env
+
+# Git, editors, caches
+.git/
+.gitignore
+.vscode/
+.idea/
+**/__pycache__/
+**/*.py[cod]
+**/.ipynb_checkpoints/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+
+# Heavy files anywhere in the tree
+**/*.SAFE/
+**/*.tif
+**/*.tiff
+**/*.dim
+**/*.data/
+**/hs_err_pid*.log

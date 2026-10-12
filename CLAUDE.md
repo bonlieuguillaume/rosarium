@@ -37,9 +37,11 @@ the layout and how a feature is added.
 
 ## Working rules
 
-- Tasks and priorities live in a GitHub Project of the repo (issues), driven
-  with `gh` (needs the `project` scope); a known limit goes in the feature's
-  README as well, since a clone does not carry the issues.
+- Tasks and priorities live in the GitHub Project
+  https://github.com/users/bonlieuguillaume/projects/1 (issues of the repo,
+  Priority P0-P3), driven with `gh` (needs the `project` scope); a known limit
+  goes in the feature's README as well, since a clone does not carry the
+  issues.
 
 - The user runs their own terminal, conda env and tests on real data. Do not
   install packages, modify the env, or run commands against their SAR products
