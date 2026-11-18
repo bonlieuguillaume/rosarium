@@ -73,6 +73,27 @@ The remote name (`cdse`) and bucket (`eodata`) are the default of `--remote`;
 another name is passed as `--remote name:eodata`. Check with
 `rclone lsd cdse:eodata` — it should list `Sentinel-1`, `Sentinel-2`, …
 
+### In Docker
+
+The container has no `rclone.conf` and does not see the host's. rclone reads
+a remote from two places: its config file, and **environment variables** named
+`RCLONE_CONFIG_<REMOTE>_<OPTION>` — the same settings as the `[cdse]` section
+above, one variable per line (`RCLONE_CONFIG_CDSE_TYPE=s3`,
+`RCLONE_CONFIG_CDSE_ACCESS_KEY_ID=...`). When both define an option, the
+variable wins.
+
+Those variables come from a `.env` file at the repository root: copy
+`.env.example` to `.env` and fill in the two keys (no spaces around `=`, no
+quotes). `docker compose` reads `.env` (`env_file` in `docker-compose.yml`)
+and hands its lines to the container as environment variables, which the
+webmap, then rclone, inherit. Only `docker compose` reads that file: neither
+rosarium's Python nor a native rclone ever opens it. `.env` holds secrets: it
+is git-ignored and kept out of the image (`.dockerignore`).
+
+So the keys live in one place per kind of install: `rclone.conf` for a conda
+install, `.env` for Docker — both to update if the keys are renewed. A
+Docker-only user never runs `rclone config`.
+
 ## Usage
 
 ```

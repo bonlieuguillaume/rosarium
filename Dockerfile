@@ -16,8 +16,22 @@ USER root
 # (microwavetbx 13.0.3); the chain was validated on the later ones (13.0.5).
 # Run as root they land in /opt/esa-snap, visible to every user. The `snap`
 # launcher starts the NetBeans platform, which looks for a screen: without
-# DISPLAY and in headless mode it does not. The check fails the build if a
-# module the graphs use still has an update pending (i.e. --update-all failed).
+# DISPLAY and in headless mode it does not.
+#
+# Three steps in one RUN:
+# 1. --update-all updates EVERY installed module (~200, optical toolboxes
+#    included), as the SNAP GUI does on a desktop install. Slow (one download
+#    per module from ESA's update server), cached as a layer afterwards.
+# 2. --list --refresh writes the module table (code name, version, state) to a
+#    file; a module still behind shows "Upgrade to x.y.z" in its state column.
+# 3. grep fails the build if a module of the families the graphs rely on is
+#    still behind, i.e. --update-all did not do its job (network error, server
+#    down): microwavetbx (the SAR toolbox: Sentinel-1, calibration, InSAR,
+#    terrain correction, readers), jlinda (interferometry, coherence) and the
+#    SNAP core modules core, gpf (graph engine), collocation, dem, geotiff.
+#    The families were picked from the module names, not checked one by one
+#    against the operators (e.g. snap.raster is not in the list). A check, not
+#    a selection: step 1 still updates everything.
 RUN env -u DISPLAY /opt/esa-snap/bin/snap -J-Djava.awt.headless=true \
         --nosplash --nogui --modules --refresh --update-all \
  && env -u DISPLAY /opt/esa-snap/bin/snap -J-Djava.awt.headless=true \
@@ -36,10 +50,23 @@ ENV PATH=/opt/esa-snap/bin:$PATH
 
 # --- Runtime user ---------------------------------------------------------
 # Run as the image's ordinary user, not root. Its uid is set to the host
-# user's (ROSARIUM_UID, 1000 = the first user on most Linux machines), so the
-# files written into the mounted data/ belong to that user on Linux; on
-# Docker Desktop (Windows, macOS) the uid makes no difference. Ubuntu's
+# user's (ROSARIUM_UID, 1000 = the first user on most Linux machines). Ubuntu's
 # default `ubuntu` user holds 1000 and is removed first.
+#
+# Why the uid matters, on a Linux host only (Docker Desktop on Windows and
+# macOS translates permissions, the uid makes no difference there):
+# - data/ is a bind mount: the same folder seen from both sides. Linux knows
+#   owners by number only, so the container user may write into it only if
+#   its uid is the folder owner's, and what it writes then belongs to that
+#   host user. Hence ROSARIUM_UID = the host user's `id -u`.
+# - data/ must exist, created by that user, BEFORE `docker compose up`. A
+#   missing bind-mount source is created by the Docker daemon, which runs as
+#   root: the folder then belongs to root, the container user can read but not
+#   write (Permission denied on the first download), and the host user needs
+#   sudo to touch it. Fix after the fact: sudo chown -R $(id -u):$(id -g) data
+# - Only the top folder matters: the features create every sub-folder they
+#   need. A clone has data/ already (.gitkeep); a launcher or a kit without the
+#   repository must create or ship it.
 ARG ROSARIUM_UID=1000
 ARG ROSARIUM_GID=1000
 RUN (userdel -r ubuntu 2>/dev/null || true) \
